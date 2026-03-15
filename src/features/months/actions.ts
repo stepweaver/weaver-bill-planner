@@ -1,0 +1,292 @@
+"use server";
+
+import { db } from "@/db";
+import { months, ledgers, incomeEvents, billInstances, billTemplates } from "@/db/schema";
+import { eq, desc, asc, and, inArray } from "drizzle-orm";
+import { endOfMonth } from "date-fns";
+import { revalidatePath } from "next/cache";
+import { buildPaycheckWindows } from "@/lib/paycheck-windows";
+import { assignBillToWindow } from "@/lib/paycheck-windows";
+import { calculateMonthMetrics } from "@/lib/month-metrics";
+import type { IncomeEventForWindow } from "@/lib/paycheck-windows";
+import { propagateMonth } from "@/lib/propagate-month";
+
+function hasDb() {
+  return !!process.env.DATABASE_URL;
+}
+
+export async function getDefaultLedgerId(): Promise<number | null> {
+  if (!hasDb()) return null;
+  const [ledger] = await db
+    .select()
+    .from(ledgers)
+    .where(eq(ledgers.isDefault, true))
+    .limit(1);
+  return ledger?.id ?? null;
+}
+
+export async function getMonthsList() {
+  if (!hasDb()) return [];
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return [];
+  return db
+    .select()
+    .from(months)
+    .where(eq(months.ledgerId, ledgerId))
+    .orderBy(desc(months.monthKey));
+}
+
+export async function getMonthByKey(monthKey: string) {
+  if (!hasDb()) return null;
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return null;
+  const [month] = await db
+    .select()
+    .from(months)
+    .where(and(eq(months.ledgerId, ledgerId), eq(months.monthKey, monthKey)))
+    .limit(1);
+  return month ?? null;
+}
+
+export async function getOpenMonthKey(): Promise<string | null> {
+  if (!hasDb()) return null;
+  const list = await getMonthsList();
+  const open = list.find((m) => m.status === "open");
+  return open?.monthKey ?? null;
+}
+
+export async function getMonthWithData(monthKey: string) {
+  if (!hasDb()) return null;
+  const month = await getMonthByKey(monthKey);
+  if (!month) return null;
+  const income = await db
+    .select()
+    .from(incomeEvents)
+    .where(eq(incomeEvents.monthId, month.id))
+    .orderBy(asc(incomeEvents.expectedDate), asc(incomeEvents.sortOrder));
+  const billsRows = await db
+    .select()
+    .from(billInstances)
+    .where(eq(billInstances.monthId, month.id))
+    .orderBy(asc(billInstances.sortOrder), asc(billInstances.dueDate));
+  const templateIds = [...new Set(billsRows.map((b) => b.templateId).filter((id): id is number => id != null))];
+  const templates =
+    templateIds.length > 0
+      ? await db
+          .select({ id: billTemplates.id, defaultPaymentUrl: billTemplates.defaultPaymentUrl })
+          .from(billTemplates)
+          .where(inArray(billTemplates.id, templateIds))
+      : [];
+  const urlByTemplateId = Object.fromEntries(templates.map((t) => [t.id, t.defaultPaymentUrl]));
+  const bills = billsRows.map((b) => ({
+    ...b,
+    paymentUrl: b.paymentUrl ?? (b.templateId ? urlByTemplateId[b.templateId] ?? null : null),
+  }));
+  const windows = buildPaycheckWindows(
+    income as IncomeEventForWindow[],
+    monthKey
+  );
+  const billsWithWindow = bills.map((b) => {
+    const assigned = assignBillToWindow(b, windows);
+    return {
+      ...b,
+      displayWindowKey: assigned?.windowKey ?? null,
+      displayIncomeEventId: assigned?.incomeEventId ?? null,
+    };
+  });
+  const metrics = calculateMonthMetrics(income, bills);
+  return {
+    month,
+    incomeEvents: income,
+    billInstances: billsWithWindow,
+    windows,
+    metrics,
+  };
+}
+
+export async function closeMonth(monthKey: string) {
+  if (!hasDb()) return { error: "Database not configured" };
+  const month = await getMonthByKey(monthKey);
+  if (!month) return { error: "Month not found" };
+  await db
+    .update(months)
+    .set({ status: "closed", updatedAt: new Date() })
+    .where(eq(months.id, month.id));
+  revalidatePath("/months");
+  revalidatePath(`/months/${monthKey}`);
+  return { success: true };
+}
+
+export async function closeMonthFormAction(formData: FormData) {
+  const monthKey = formData.get("monthKey");
+  if (typeof monthKey !== "string") return;
+  await closeMonth(monthKey);
+}
+
+/** Build a draft month from active templates (for first month or "from templates" flow). */
+export async function getDraftFromTemplates(targetMonthKey: string) {
+  if (!hasDb()) return null;
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return null;
+  const templates = await db
+    .select()
+    .from(billTemplates)
+    .where(eq(billTemplates.ledgerId, ledgerId))
+    .orderBy(asc(billTemplates.sortOrder), asc(billTemplates.name));
+  const active = templates.filter((t) => t.active !== false);
+  if (active.length === 0) return null;
+  const [y, m] = targetMonthKey.split("-").map(Number);
+  const first = new Date(y, m - 1, 1);
+  const last = endOfMonth(first);
+  const lastDay = last.getDate();
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  const weekdaysInMonth = (weekdays: number[]): string[] => {
+    const out: string[] = [];
+    for (let day = 1; day <= lastDay; day++) {
+      const date = new Date(y, m - 1, day);
+      if (weekdays.includes(date.getDay())) out.push(date.toISOString().slice(0, 10));
+    }
+    return out;
+  };
+
+  const billInstancesDraft: Array<{
+    templateId: number | null;
+    name: string;
+    dueDate: string | null;
+    plannedAmount: number | null;
+    paymentUrl: string | null;
+    isRecurring: boolean;
+  }> = [];
+  for (const t of active) {
+    const dueWeekdaysRaw = t.dueWeekdays?.trim();
+    const dueWeekdays = dueWeekdaysRaw
+      ? dueWeekdaysRaw.split(",").map((x) => Number(x.trim())).filter((n) => !Number.isNaN(n) && n >= 0 && n <= 6)
+      : [];
+    if (dueWeekdays.length > 0) {
+      for (const dueDate of weekdaysInMonth(dueWeekdays)) {
+        billInstancesDraft.push({
+          templateId: t.id,
+          name: t.name,
+          dueDate,
+          plannedAmount: t.defaultPlannedAmount,
+          paymentUrl: t.defaultPaymentUrl,
+          isRecurring: true,
+        });
+      }
+    } else {
+      const hasDueDay = t.defaultDueDay != null && t.defaultDueDay >= 1 && t.defaultDueDay <= 31;
+      const dueDate = hasDueDay
+        ? new Date(y, m - 1, Math.min(t.defaultDueDay!, lastDay)).toISOString().slice(0, 10)
+        : null;
+      billInstancesDraft.push({
+        templateId: t.id,
+        name: t.name,
+        dueDate,
+        plannedAmount: t.defaultPlannedAmount,
+        paymentUrl: t.defaultPaymentUrl,
+        isRecurring: true,
+      });
+    }
+  }
+  return {
+    targetMonthKey,
+    label: `${monthNames[m - 1]} ${y}`,
+    billInstances: billInstancesDraft,
+    incomeEvents: [] as Array<{ name: string; expectedDate: string; expectedAmount: number | null }>,
+  };
+}
+
+export async function getPropagationDraft(sourceMonthId: number, targetMonthKey: string) {
+  if (!hasDb()) return null;
+  const [sourceMonth] = await db.select().from(months).where(eq(months.id, sourceMonthId)).limit(1);
+  if (!sourceMonth) return null;
+  const sourceBills = await db.select().from(billInstances).where(eq(billInstances.monthId, sourceMonthId));
+  const sourceIncome = await db.select().from(incomeEvents).where(eq(incomeEvents.monthId, sourceMonthId));
+  return propagateMonth(
+    sourceBills.map((b) => ({
+      templateId: b.templateId,
+      name: b.name,
+      dueDate: b.dueDate != null ? String(b.dueDate) : null,
+      plannedAmount: b.plannedAmount,
+      paymentUrl: b.paymentUrl,
+      isRecurring: b.isRecurring,
+    })),
+    sourceIncome.map((e) => ({
+      name: e.name,
+      expectedDate: String(e.expectedDate),
+      expectedAmount: e.expectedAmount,
+    })),
+    targetMonthKey
+  );
+}
+
+export async function createMonthFromPropagation(draft: {
+  targetMonthKey: string;
+  label: string;
+  billInstances: Array<{
+    templateId: number | null;
+    name: string;
+    dueDate: string | null;
+    plannedAmount: number | null;
+    paymentUrl: string | null;
+    isRecurring: boolean;
+  }>;
+  incomeEvents: Array<{
+    name: string;
+    expectedDate: string;
+    expectedAmount: number | null;
+  }>;
+}) {
+  if (!hasDb()) return { error: "Database not configured" };
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: "No default ledger" };
+  const [existing] = await db
+    .select()
+    .from(months)
+    .where(
+      and(eq(months.ledgerId, ledgerId), eq(months.monthKey, draft.targetMonthKey))
+    )
+    .limit(1);
+  if (existing) return { error: "Month already exists" };
+  const [newMonth] = await db
+    .insert(months)
+    .values({
+      ledgerId,
+      monthKey: draft.targetMonthKey,
+      label: draft.label,
+      status: "open",
+    })
+    .returning();
+  if (!newMonth) return { error: "Failed to create month" };
+  for (const b of draft.billInstances) {
+    const dueDate = typeof b.dueDate === "string" && b.dueDate.trim() ? b.dueDate : null;
+    await db.insert(billInstances).values({
+      monthId: newMonth.id,
+      templateId: b.templateId,
+      name: b.name,
+      dueDate,
+      plannedAmount: b.plannedAmount,
+      paymentUrl: b.paymentUrl,
+      status: "scheduled",
+      isRecurring: b.isRecurring,
+    });
+  }
+  const validIncome = draft.incomeEvents.filter(
+    (e) => e.name?.trim() && e.expectedDate
+  );
+  for (const e of validIncome) {
+    await db.insert(incomeEvents).values({
+      monthId: newMonth.id,
+      name: e.name.trim(),
+      expectedDate: e.expectedDate,
+      expectedAmount: e.expectedAmount,
+      status: "expected",
+    });
+  }
+  revalidatePath("/months");
+  revalidatePath(`/months/${draft.targetMonthKey}`);
+  return { success: true, monthKey: draft.targetMonthKey };
+}

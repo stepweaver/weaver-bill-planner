@@ -43,6 +43,9 @@ export const billTemplates = pgTable("bill_templates", {
     .references(() => ledgers.id),
   name: text("name").notNull(),
   defaultDueDay: integer("default_due_day"),
+  defaultDueDate: date("default_due_date"),
+  /** Comma-separated weekday numbers 0–6 (Sun–Sat). When set, month generation creates one bill per occurrence. */
+  dueWeekdays: text("due_weekdays"),
   defaultPlannedAmount: real("default_planned_amount"),
   defaultPaymentUrl: text("default_payment_url"),
   active: boolean("active").default(true),
@@ -78,7 +81,7 @@ export const billInstances = pgTable("bill_instances", {
   plannedAmount: real("planned_amount"),
   invoiceAmount: real("invoice_amount"),
   amountPaid: real("amount_paid"),
-  status: text("status").notNull().default("pending"),
+  status: text("status").notNull().default("scheduled"),
   notes: text("notes"),
   paymentUrl: text("payment_url"),
   assignedIncomeEventId: integer("assigned_income_event_id").references(

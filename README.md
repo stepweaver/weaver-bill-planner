@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Bill Planner
 
-## Getting Started
+A paycheck-to-bills scheduler: plan which bills get paid by which check each month.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Next.js 16 (App Router), TypeScript, Tailwind CSS, shadcn/ui
+- Neon Postgres, Drizzle ORM
+- Auth.js (credentials only), Zod, React Hook Form, date-fns
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+1. **Environment**
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   Copy `.env.example` to `.env.local` and set:
 
-## Learn More
+   - `DATABASE_URL` – Neon Postgres connection string
+   - `AUTH_SECRET` – e.g. `openssl rand -base64 32`
+   - `ADMIN_USER` – login username (default `admin`)
+   - `ADMIN_PASSWORD` – login password (default `changeme`)
 
-To learn more about Next.js, take a look at the following resources:
+2. **Database**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+   ```bash
+   npm run db:push    # or db:migrate if you use migrations
+   npm run db:seed    # seeds default "Household" ledger
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3. **Run**
 
-## Deploy on Vercel
+   ```bash
+   npm run dev
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+   Open [http://localhost:3000](http://localhost:3000). Sign in with `ADMIN_USER` / `ADMIN_PASSWORD`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Scripts
+
+- `npm run dev` – development server
+- `npm run build` – production build
+- `npm run db:generate` – generate Drizzle migrations
+- `npm run db:push` – push schema to DB
+- `npm run db:seed` – seed default ledger
+- `npm run db:studio` – Drizzle Studio
+
+## Features
+
+- **Months** – Create and open months; create next month from a previous one (propagation with review).
+- **Income** – Add income events per month; they define paycheck windows.
+- **Bills** – Add bills with due date, amounts, status, payment link; auto-grouped by paycheck window; manual override supported.
+- **HUD** – Expected/received income, planned/paid/remaining expenses, leftover, overdue and unassigned counts.
+- **Templates** – Recurring bill templates for propagation.
+- **Settings** – Placeholder for ledger and password (MVP single-household).

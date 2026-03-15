@@ -1,0 +1,1 @@
+ALTER TABLE "bill_templates" ADD COLUMN "default_due_date" date;
