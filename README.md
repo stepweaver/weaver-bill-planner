@@ -43,6 +43,34 @@ A paycheck-to-bills scheduler: plan which bills get paid by which check each mon
 - `npm run db:seed` – seed default ledger
 - `npm run db:studio` – Drizzle Studio
 
+## GitHub & deployment
+
+### Push to GitHub
+
+1. **Create a new repository** on [GitHub](https://github.com/new):
+   - Name it `weaver-bill-planner` (or any name).
+   - Do **not** initialize with a README (you already have one).
+
+2. **Add the remote and push** (replace `YOUR_USERNAME` and `YOUR_REPO` with your GitHub user and repo name):
+
+   ```bash
+   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+   git branch -M main
+   git push -u origin main
+   ```
+
+### Deploy on Vercel
+
+1. Go to [vercel.com](https://vercel.com) and sign in with GitHub.
+2. **Import** your `weaver-bill-planner` repo.
+3. **Environment variables** (in Vercel project → Settings → Environment Variables):
+   - `DATABASE_URL` – your Neon Postgres connection string (Production, Preview, Development).
+   - `AUTH_SECRET` – e.g. run `openssl rand -base64 32` and paste the result.
+   - `ADMIN_USER` / `ADMIN_PASSWORD` – optional; set for production or keep defaults.
+4. **Deploy.** Vercel will build and deploy. Your app will be at `https://your-project.vercel.app`.
+
+**Database:** Ensure your Neon database exists and migrations have been applied (e.g. run `npm run db:push` or `db:migrate` locally against the same `DATABASE_URL`, or use Neon’s SQL editor to run the migration files in `drizzle/`).
+
 ## Features
 
 - **Months** – Create and open months; create next month from a previous one (propagation with review).
