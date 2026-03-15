@@ -251,7 +251,6 @@ body {
 .hud-panel {
   position: relative;
   background: rgb(var(--panel) / 0.75);
-  border: 1px solid rgb(var(--neon) / 0.2);
   box-shadow: 0 0 22px rgb(var(--neon) / 0.18);
   --c: 10px;
   clip-path: polygon(
@@ -264,7 +263,6 @@ body {
 
 :root:not(.dark) .hud-panel {
   background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(0, 0, 0, 0.12);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 

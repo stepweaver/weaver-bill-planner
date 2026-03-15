@@ -6,8 +6,13 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { incomeEventSchema } from "@/lib/validations/income";
 import { recomputeAssignmentsForMonth } from "@/features/bills/actions";
+import { getDefaultLedgerId, getMonthByIdAndLedger } from "@/features/months/actions";
 
 export async function createIncome(monthId: number, monthKey: string, formData: FormData) {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: { form: ["Unauthorized"] } };
+  const month = await getMonthByIdAndLedger(monthId, ledgerId);
+  if (!month) return { error: { form: ["Forbidden"] } };
   const raw = Object.fromEntries(formData.entries());
   const parsed = incomeEventSchema.safeParse({
     name: raw.name,
@@ -40,8 +45,12 @@ export async function updateIncome(
   monthKey: string,
   formData: FormData
 ) {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: { form: ["Unauthorized"] } };
   const [existing] = await db.select({ monthId: incomeEvents.monthId }).from(incomeEvents).where(eq(incomeEvents.id, id));
   if (!existing) return { error: { form: ["Income event not found"] } };
+  const month = await getMonthByIdAndLedger(existing.monthId, ledgerId);
+  if (!month) return { error: { form: ["Forbidden"] } };
   const raw = Object.fromEntries(formData.entries());
   const parsed = incomeEventSchema.safeParse({
     name: raw.name,
@@ -73,9 +82,14 @@ export async function updateIncome(
 }
 
 export async function deleteIncome(id: number, monthKey: string) {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: "Unauthorized" };
   const [ev] = await db.select({ monthId: incomeEvents.monthId }).from(incomeEvents).where(eq(incomeEvents.id, id));
+  if (!ev) return { error: "Not found" };
+  const month = await getMonthByIdAndLedger(ev.monthId, ledgerId);
+  if (!month) return { error: "Forbidden" };
   await db.delete(incomeEvents).where(eq(incomeEvents.id, id));
-  if (ev) await recomputeAssignmentsForMonth(ev.monthId, monthKey);
+  await recomputeAssignmentsForMonth(ev.monthId, monthKey);
   revalidatePath(`/months/${monthKey}`, "page");
   return { success: true };
 }

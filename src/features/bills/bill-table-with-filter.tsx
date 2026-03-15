@@ -12,7 +12,7 @@ import { BillTableByWindow } from "./bill-table-by-window";
 import { getEffectivePlannedAmount, isBillPaid, isBillOverdue } from "@/lib/bill-utils";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 
-export type BillFilter = "all" | "pending" | "paid" | "overdue" | "unassigned";
+export type BillFilter = "all" | "due" | "pending" | "paid" | "overdue" | "unassigned";
 
 type BillInstance = {
   id: number;
@@ -44,8 +44,10 @@ function filterBills(
     const overdue = isBillOverdue(b.dueDate, b.status, b.amountPaid, effective);
     const unassigned = !b.displayWindowKey && !b.assignedGroupKey;
     switch (filter) {
+      case "due":
+        return b.status === "scheduled";
       case "pending":
-        return !paid && b.status !== "skipped";
+        return b.status === "pending";
       case "paid":
         return paid;
       case "overdue":
@@ -82,7 +84,8 @@ export function BillTableWithFilter({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="due">Due (not yet sent)</SelectItem>
+            <SelectItem value="pending">Pending (sent, not cleared)</SelectItem>
             <SelectItem value="paid">Paid</SelectItem>
             <SelectItem value="overdue">Overdue</SelectItem>
             <SelectItem value="unassigned">Unassigned</SelectItem>

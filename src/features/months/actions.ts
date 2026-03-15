@@ -10,12 +10,16 @@ import { assignBillToWindow } from "@/lib/paycheck-windows";
 import { calculateMonthMetrics } from "@/lib/month-metrics";
 import type { IncomeEventForWindow } from "@/lib/paycheck-windows";
 import { propagateMonth } from "@/lib/propagate-month";
+import { getSessionForServer } from "@/lib/auth-server";
 
 function hasDb() {
   return !!process.env.DATABASE_URL;
 }
 
+/** Returns default ledger id only when session is valid. Used for ownership scoping. */
 export async function getDefaultLedgerId(): Promise<number | null> {
+  const session = await getSessionForServer();
+  if (!session) return null;
   if (!hasDb()) return null;
   const [ledger] = await db
     .select()
@@ -23,6 +27,19 @@ export async function getDefaultLedgerId(): Promise<number | null> {
     .where(eq(ledgers.isDefault, true))
     .limit(1);
   return ledger?.id ?? null;
+}
+
+/** Resolve month by id and ledger; returns null if not found or wrong ledger (for ownership checks). */
+export async function getMonthByIdAndLedger(
+  monthId: number,
+  ledgerId: number
+): Promise<{ id: number; ledgerId: number; monthKey: string } | null> {
+  const [month] = await db
+    .select({ id: months.id, ledgerId: months.ledgerId, monthKey: months.monthKey })
+    .from(months)
+    .where(and(eq(months.id, monthId), eq(months.ledgerId, ledgerId)))
+    .limit(1);
+  return month ?? null;
 }
 
 export async function getMonthsList() {
@@ -200,8 +217,9 @@ export async function getDraftFromTemplates(targetMonthKey: string) {
 }
 
 export async function getPropagationDraft(sourceMonthId: number, targetMonthKey: string) {
-  if (!hasDb()) return null;
-  const [sourceMonth] = await db.select().from(months).where(eq(months.id, sourceMonthId)).limit(1);
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId || !hasDb()) return null;
+  const sourceMonth = await getMonthByIdAndLedger(sourceMonthId, ledgerId);
   if (!sourceMonth) return null;
   const sourceBills = await db.select().from(billInstances).where(eq(billInstances.monthId, sourceMonthId));
   const sourceIncome = await db.select().from(incomeEvents).where(eq(incomeEvents.monthId, sourceMonthId));

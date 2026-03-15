@@ -46,7 +46,8 @@ export function MobileNav() {
   const pathname = usePathname();
 
   useEffect(() => {
-    setOpen(false);
+    const id = setTimeout(() => setOpen(false), 0);
+    return () => clearTimeout(id);
   }, [pathname]);
 
   useEffect(() => {

@@ -8,6 +8,7 @@ import { billInstanceSchema } from "@/lib/validations/bill";
 import { assignBillToWindow } from "@/lib/paycheck-windows";
 import { buildPaycheckWindows } from "@/lib/paycheck-windows";
 import type { IncomeEventForWindow } from "@/lib/paycheck-windows";
+import { getDefaultLedgerId, getMonthByIdAndLedger } from "@/features/months/actions";
 
 function toNum(v: unknown): number | null {
   if (v === "" || v === null || v === undefined) return null;
@@ -20,6 +21,10 @@ function toBool(v: unknown): boolean {
 }
 
 export async function createBill(monthId: number, monthKey: string, formData: FormData) {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: { form: ["Unauthorized"] } };
+  const month = await getMonthByIdAndLedger(monthId, ledgerId);
+  if (!month) return { error: { form: ["Forbidden"] } };
   const raw = Object.fromEntries(formData.entries());
   const parsed = billInstanceSchema.safeParse({
     name: raw.name,
@@ -72,6 +77,12 @@ export async function updateBill(
   monthKey: string,
   formData: FormData
 ) {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: { form: ["Unauthorized"] } };
+  const month = await getMonthByIdAndLedger(monthId, ledgerId);
+  if (!month) return { error: { form: ["Forbidden"] } };
+  const [bill] = await db.select({ monthId: billInstances.monthId }).from(billInstances).where(eq(billInstances.id, id)).limit(1);
+  if (!bill || bill.monthId !== monthId) return { error: { form: ["Forbidden"] } };
   const raw = Object.fromEntries(formData.entries());
   const parsed = billInstanceSchema.safeParse({
     name: raw.name,
@@ -118,7 +129,13 @@ export async function updateBill(
   return { success: true };
 }
 
-export async function deleteBill(id: number, monthKey: string) {
+export async function deleteBill(id: number, monthKey: string): Promise<{ success?: true; error?: string }> {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: "Unauthorized" };
+  const [bill] = await db.select({ monthId: billInstances.monthId }).from(billInstances).where(eq(billInstances.id, id)).limit(1);
+  if (!bill) return { error: "Not found" };
+  const month = await getMonthByIdAndLedger(bill.monthId, ledgerId);
+  if (!month) return { error: "Forbidden" };
   await db.delete(billInstances).where(eq(billInstances.id, id));
   revalidatePath(`/months/${monthKey}`, "page");
   return { success: true };
@@ -156,6 +173,10 @@ async function recomputeBillAssignment(monthId: number, monthKey: string) {
 }
 
 export async function recomputeAssignmentsForMonth(monthId: number, monthKey: string) {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: "Unauthorized" };
+  const month = await getMonthByIdAndLedger(monthId, ledgerId);
+  if (!month) return { error: "Forbidden" };
   const { db: database } = await import("@/db");
   const { incomeEvents } = await import("@/db/schema");
   const bills = await database

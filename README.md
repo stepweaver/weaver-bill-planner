@@ -18,6 +18,8 @@ A paycheck-to-bills scheduler: plan which bills get paid by which check each mon
    - `AUTH_SECRET` – e.g. `openssl rand -base64 32`
    - `AUTHORIZED_USERS` – comma-separated `username:password` (e.g. `stephen:mypass,jane:herpass`). Passwords must not contain `,` or `:`.
 
+   **Secrets:** Do not prefix these with `NEXT_PUBLIC_`; that inlines values into the client bundle. Keep DB URLs, auth secrets, and API keys in server-only env (e.g. Vercel project env in production).
+
 2. **Database**
 
    ```bash
@@ -69,6 +71,31 @@ A paycheck-to-bills scheduler: plan which bills get paid by which check each mon
 4. **Deploy.** Vercel will build and deploy. Your app will be at `https://your-project.vercel.app`.
 
 **Database:** Ensure your Neon database exists and migrations have been applied (e.g. run `npm run db:push` or `db:migrate` locally against the same `DATABASE_URL`, or use Neon’s SQL editor to run the migration files in `drizzle/`).
+
+### Row-Level Security (RLS)
+
+An optional migration enables RLS on user-facing tables as a backstop. Apply it manually if desired (e.g. via Neon SQL editor): run the SQL in `drizzle/0004_enable_rls.sql`. This restricts table access to rows belonging to the default ledger.
+
+### Rate limiting
+
+- **Login:** In-memory rate limit (10 attempts per minute per IP). For production at scale, consider Vercel's options (e.g. `@vercel/firewall`) or a store like Redis.
+
+## Security
+
+### Repository (GitHub)
+
+Maintainers should enable:
+
+- **Dependabot** – alerts and security updates for dependencies
+- **Secret scanning** and **push protection** – prevent committed secrets
+- **Code scanning** (e.g. CodeQL) – optional, for automated code analysis
+
+### Security self-check
+
+- **Replay without session:** In DevTools → Network, while logged out, replay a request that triggers a server action. You should get no private data (redirect to login or error).
+- **IDOR:** Log in, capture a request that fetches or updates a bill/month/template by id; change only the resource id. The response must not return or modify another ledger's data (expect 403 or "not found").
+- **Secrets scan:** Search the built client bundle and repo for `service_role`, `DATABASE_URL`, `JWT_SECRET`, `AUTH_SECRET`, `sk_`, `pk_`, and any private vendor keys. None should appear in the client bundle or committed files.
+- **Table-by-table:** For each table that holds user/ledger data, ask: "If the client sent a forged id, could this query return or change rows for another user/ledger?" All reads/writes are gated by session and default-ledger ownership (and optionally RLS).
 
 ## Features
 

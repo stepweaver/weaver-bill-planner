@@ -56,7 +56,11 @@ export async function updateTemplate(
   id: number,
   formData: FormData
 ) {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: "Unauthorized" };
   if (!hasDb()) return { error: "Database not configured" };
+  const [template] = await db.select({ ledgerId: billTemplates.ledgerId }).from(billTemplates).where(eq(billTemplates.id, id)).limit(1);
+  if (!template || template.ledgerId !== ledgerId) return { error: "Forbidden" };
   const raw = Object.fromEntries(formData.entries());
   const parsed = billTemplateSchema.safeParse({
     name: raw.name,
@@ -87,7 +91,11 @@ export async function updateTemplate(
 }
 
 export async function deleteTemplate(id: number) {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: "Unauthorized" };
   if (!hasDb()) return { error: "Database not configured" };
+  const [template] = await db.select({ ledgerId: billTemplates.ledgerId }).from(billTemplates).where(eq(billTemplates.id, id)).limit(1);
+  if (!template || template.ledgerId !== ledgerId) return { error: "Forbidden" };
   await db.delete(billTemplates).where(eq(billTemplates.id, id));
   revalidatePath("/templates");
   return { success: true };
