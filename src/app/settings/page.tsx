@@ -32,7 +32,7 @@ export default function SettingsPage() {
             <CardTitle className="text-base">Change password</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Update <code className="rounded bg-muted px-1">ADMIN_PASSWORD</code> in your environment and restart the app. In-app password change will be added in a future update.
+            Update <code className="rounded bg-muted px-1">AUTHORIZED_USERS</code> in your environment and restart the app. In-app password change will be added in a future update.
           </CardContent>
         </Card>
       </div>

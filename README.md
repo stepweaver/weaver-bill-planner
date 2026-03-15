@@ -16,8 +16,7 @@ A paycheck-to-bills scheduler: plan which bills get paid by which check each mon
 
    - `DATABASE_URL` – Neon Postgres connection string
    - `AUTH_SECRET` – e.g. `openssl rand -base64 32`
-   - `ADMIN_USER` – login username (default `admin`)
-   - `ADMIN_PASSWORD` – login password (default `changeme`)
+   - `AUTHORIZED_USERS` – comma-separated `username:password` (e.g. `stephen:mypass,jane:herpass`). Passwords must not contain `,` or `:`.
 
 2. **Database**
 
@@ -32,7 +31,7 @@ A paycheck-to-bills scheduler: plan which bills get paid by which check each mon
    npm run dev
    ```
 
-   Open [http://localhost:3000](http://localhost:3000). Sign in with `ADMIN_USER` / `ADMIN_PASSWORD`.
+   Open [http://localhost:3000](http://localhost:3000). Sign in with any username/password from `AUTHORIZED_USERS`.
 
 ## Scripts
 
@@ -66,7 +65,7 @@ A paycheck-to-bills scheduler: plan which bills get paid by which check each mon
 3. **Environment variables** (in Vercel project → Settings → Environment Variables):
    - `DATABASE_URL` – your Neon Postgres connection string (Production, Preview, Development).
    - `AUTH_SECRET` – e.g. run `openssl rand -base64 32` and paste the result.
-   - `ADMIN_USER` / `ADMIN_PASSWORD` – optional; set for production or keep defaults.
+   - `AUTHORIZED_USERS` – comma-separated `username:password`; set for production.
 4. **Deploy.** Vercel will build and deploy. Your app will be at `https://your-project.vercel.app`.
 
 **Database:** Ensure your Neon database exists and migrations have been applied (e.g. run `npm run db:push` or `db:migrate` locally against the same `DATABASE_URL`, or use Neon’s SQL editor to run the migration files in `drizzle/`).
