@@ -1,13 +1,15 @@
 "use server";
 
 import { db } from "@/db";
-import { billInstances } from "@/db/schema";
+import { billInstances, incomeEvents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { billInstanceSchema } from "@/lib/validations/bill";
-import { assignBillToWindow } from "@/lib/paycheck-windows";
-import { buildPaycheckWindows } from "@/lib/paycheck-windows";
-import type { IncomeEventForWindow } from "@/lib/paycheck-windows";
+import { recomputeAutoAssignmentsForMonth } from "@/lib/recompute-auto-assignments";
+import {
+  buildPaycheckWindows,
+  type IncomeEventForWindow,
+} from "@/lib/paycheck-windows";
 import { getDefaultLedgerId, getMonthByIdAndLedger } from "@/features/months/actions";
 
 function toNum(v: unknown): number | null {
@@ -65,7 +67,7 @@ export async function createBill(monthId: number, monthKey: string, formData: Fo
     })
     .returning();
   if (inserted && !d.manualAssignment) {
-    await recomputeBillAssignment(monthId, monthKey);
+    await recomputeAutoAssignmentsForMonth(monthId, monthKey);
   }
   revalidatePath(`/months/${monthKey}`, "page");
   return { success: true };
@@ -123,7 +125,7 @@ export async function updateBill(
     })
     .where(eq(billInstances.id, id));
   if (!d.manualAssignment) {
-    await recomputeBillAssignment(monthId, monthKey);
+    await recomputeAutoAssignmentsForMonth(monthId, monthKey);
   }
   revalidatePath(`/months/${monthKey}`, "page");
   return { success: true };
@@ -141,67 +143,130 @@ export async function deleteBill(id: number, monthKey: string): Promise<{ succes
   return { success: true };
 }
 
-async function recomputeBillAssignment(monthId: number, monthKey: string) {
-  const { db: database } = await import("@/db");
-  const { incomeEvents } = await import("@/db/schema");
-  const bills = await database
-    .select()
-    .from(billInstances)
-    .where(eq(billInstances.monthId, monthId));
-  const income = await database
-    .select({ id: incomeEvents.id, expectedDate: incomeEvents.expectedDate, name: incomeEvents.name })
-    .from(incomeEvents)
-    .where(eq(incomeEvents.monthId, monthId));
-  const windows = buildPaycheckWindows(
-    income as IncomeEventForWindow[],
-    monthKey
-  );
-  for (const bill of bills) {
-    if (bill.manualAssignment) continue;
-    const assigned = assignBillToWindow(bill, windows);
-    if (assigned) {
-      await database
-        .update(billInstances)
-        .set({
-          assignedGroupKey: assigned.windowKey,
-          assignedIncomeEventId: assigned.incomeEventId,
-          updatedAt: new Date(),
-        })
-        .where(eq(billInstances.id, bill.id));
-    }
-  }
-}
-
+/** Re-runs auto-assignment after income changes. Preserves manual overrides. */
 export async function recomputeAssignmentsForMonth(monthId: number, monthKey: string) {
   const ledgerId = await getDefaultLedgerId();
   if (!ledgerId) return { error: "Unauthorized" };
   const month = await getMonthByIdAndLedger(monthId, ledgerId);
   if (!month) return { error: "Forbidden" };
-  const { db: database } = await import("@/db");
-  const { incomeEvents } = await import("@/db/schema");
-  const bills = await database
-    .select()
+  await recomputeAutoAssignmentsForMonth(monthId, monthKey);
+  revalidatePath(`/months/${monthKey}`, "page");
+  return { success: true };
+}
+
+const QUICK_STATUSES = new Set(["scheduled", "pending", "paid", "skipped"]);
+
+async function assertBillOwned(
+  billId: number,
+  monthId: number
+): Promise<{ ok: true } | { error: string }> {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: "Unauthorized" };
+  const month = await getMonthByIdAndLedger(monthId, ledgerId);
+  if (!month) return { error: "Forbidden" };
+  const [row] = await db
+    .select({ monthId: billInstances.monthId })
     .from(billInstances)
-    .where(eq(billInstances.monthId, monthId));
-  const income = await database
-    .select({ id: incomeEvents.id, expectedDate: incomeEvents.expectedDate, name: incomeEvents.name })
-    .from(incomeEvents)
-    .where(eq(incomeEvents.monthId, monthId));
-  const windows = buildPaycheckWindows(
-    income as IncomeEventForWindow[],
-    monthKey
-  );
-  for (const bill of bills) {
-    const assigned = assignBillToWindow(bill, windows);
-    await database
+    .where(eq(billInstances.id, billId))
+    .limit(1);
+  if (!row || row.monthId !== monthId) return { error: "Forbidden" };
+  return { ok: true };
+}
+
+export async function quickUpdateBillStatus(
+  billId: number,
+  monthId: number,
+  monthKey: string,
+  status: string
+): Promise<{ success?: true; error?: string }> {
+  if (!QUICK_STATUSES.has(status)) return { error: "Invalid status" };
+  const gate = await assertBillOwned(billId, monthId);
+  if ("error" in gate) return gate;
+  await db
+    .update(billInstances)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(billInstances.id, billId));
+  revalidatePath(`/months/${monthKey}`, "page");
+  return { success: true };
+}
+
+export async function quickUpdateBillAmountPaid(
+  billId: number,
+  monthId: number,
+  monthKey: string,
+  amountPaid: number | null
+): Promise<{ success?: true; error?: string }> {
+  const gate = await assertBillOwned(billId, monthId);
+  if ("error" in gate) return gate;
+  await db
+    .update(billInstances)
+    .set({ amountPaid, updatedAt: new Date() })
+    .where(eq(billInstances.id, billId));
+  revalidatePath(`/months/${monthKey}`, "page");
+  return { success: true };
+}
+
+export async function quickUpdateBillNotes(
+  billId: number,
+  monthId: number,
+  monthKey: string,
+  notes: string | null
+): Promise<{ success?: true; error?: string }> {
+  const gate = await assertBillOwned(billId, monthId);
+  if ("error" in gate) return gate;
+  const trimmed = notes?.trim() ? notes.trim() : null;
+  await db
+    .update(billInstances)
+    .set({ notes: trimmed, updatedAt: new Date() })
+    .where(eq(billInstances.id, billId));
+  revalidatePath(`/months/${monthKey}`, "page");
+  return { success: true };
+}
+
+/** `windowKey` null or empty string = return to auto-assignment */
+export async function quickAssignBillToWindow(
+  billId: number,
+  monthId: number,
+  monthKey: string,
+  windowKey: string | null
+): Promise<{ success?: true; error?: string }> {
+  const gate = await assertBillOwned(billId, monthId);
+  if ("error" in gate) return gate;
+  if (windowKey == null || windowKey === "") {
+    await db
       .update(billInstances)
       .set({
         manualAssignment: false,
-        assignedGroupKey: assigned?.windowKey ?? null,
-        assignedIncomeEventId: assigned?.incomeEventId ?? null,
+        assignedGroupKey: null,
+        assignedIncomeEventId: null,
         updatedAt: new Date(),
       })
-      .where(eq(billInstances.id, bill.id));
+      .where(eq(billInstances.id, billId));
+    await recomputeAutoAssignmentsForMonth(monthId, monthKey);
+  } else {
+    const income = await db
+      .select({
+        id: incomeEvents.id,
+        expectedDate: incomeEvents.expectedDate,
+        name: incomeEvents.name,
+      })
+      .from(incomeEvents)
+      .where(eq(incomeEvents.monthId, monthId));
+    const windows = buildPaycheckWindows(
+      income as IncomeEventForWindow[],
+      monthKey
+    );
+    const w = windows.find((x) => x.key === windowKey);
+    if (!w) return { error: "Invalid paycheck window" };
+    await db
+      .update(billInstances)
+      .set({
+        manualAssignment: true,
+        assignedGroupKey: windowKey,
+        assignedIncomeEventId: w.incomeEventId,
+        updatedAt: new Date(),
+      })
+      .where(eq(billInstances.id, billId));
   }
   revalidatePath(`/months/${monthKey}`, "page");
   return { success: true };

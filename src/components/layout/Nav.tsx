@@ -28,7 +28,12 @@ export function Nav() {
         </Link>
         <Link href="/templates">
           <Button variant="ghost" size="sm" className="uppercase tracking-wider font-medium">
-            Templates
+            Recurring
+          </Button>
+        </Link>
+        <Link href="/settings">
+          <Button variant="ghost" size="sm" className="uppercase tracking-wider font-medium">
+            Settings
           </Button>
         </Link>
       </div>

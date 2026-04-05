@@ -1,3 +1,9 @@
+import path from "path";
+import { fileURLToPath } from "url";
+
+/** App directory (this file lives at project root). */
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" },
@@ -25,6 +31,10 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  // Parent folder may contain a lockfile (monorepo-style); Next would then use
+  // it as outputFileTracingRoot / turbopack.root and resolve CSS imports like
+  // `tailwindcss` from there—where node_modules does not exist.
+  outputFileTracingRoot: projectRoot,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

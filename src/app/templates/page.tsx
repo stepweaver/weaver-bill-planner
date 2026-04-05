@@ -9,9 +9,9 @@ export default async function TemplatesPage() {
 
   return (
     <AppShell>
-      <h1 className="terminal-glow text-xl font-semibold tracking-tight">Bill templates</h1>
+      <h1 className="terminal-glow text-xl font-semibold tracking-tight">Recurring bills</h1>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        Recurring bill defaults. Used when creating a new month from a previous one.
+        Defaults for bills that repeat. Rolled forward when you create a new month.
       </p>
       <div className="mt-4">
         <TemplateList templates={templates} />

@@ -18,6 +18,7 @@ type BillInstance = {
   assignedGroupKey: string | null;
   manualAssignment: boolean | null;
   templateId: number | null;
+  updatedAt?: Date | string | null;
 };
 
 /** Sort order for secondary sort: scheduled/skipped first, then pending, then paid */
@@ -83,7 +84,7 @@ export function BillTableByWindow({
                 <ul className="space-y-0 text-xs">
                   {winBills.map((b) => (
                     <BillRow
-                      key={b.id}
+                      key={`${b.id}-${String(b.updatedAt ?? "")}`}
                       bill={b}
                       monthId={monthId}
                       monthKey={monthKey}
@@ -105,7 +106,7 @@ export function BillTableByWindow({
             <ul className="space-y-0 text-xs">
               {sortBillsByDueDateThenStatus(billsByWindow.get("unassigned")!).map((b) => (
                 <BillRow
-                  key={b.id}
+                  key={`${b.id}-${String(b.updatedAt ?? "")}`}
                   bill={b}
                   monthId={monthId}
                   monthKey={monthKey}

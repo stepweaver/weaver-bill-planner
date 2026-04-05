@@ -16,7 +16,8 @@ import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { name: "Months", path: "/months" },
-  { name: "Templates", path: "/templates" },
+  { name: "Recurring", path: "/templates" },
+  { name: "Settings", path: "/settings" },
 ];
 
 function HamburgerIcon({ open }: { open: boolean }) {

@@ -15,7 +15,7 @@ export default async function MonthsPage() {
       <div className="flex items-center justify-between">
         <h1 className="terminal-glow text-2xl font-semibold tracking-tight">Months</h1>
         <Link href="/months/new">
-          <Button>Create New Month</Button>
+          <Button>Roll forward month</Button>
         </Link>
       </div>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -26,7 +26,7 @@ export default async function MonthsPage() {
                 No months yet. Create your first month to get started.
               </p>
               <Link href="/months/new" className="mt-4">
-                <Button>Create your first month</Button>
+                <Button>Start first month</Button>
               </Link>
             </CardContent>
           </Card>

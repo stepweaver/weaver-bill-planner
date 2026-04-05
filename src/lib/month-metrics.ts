@@ -1,4 +1,9 @@
 import { getEffectivePlannedAmount, isBillPaid, isBillOverdue } from "./bill-utils";
+import {
+  assignBillToWindow,
+  buildPaycheckWindows,
+  type IncomeEventForWindow,
+} from "./paycheck-windows";
 
 export interface IncomeEventForMetrics {
   expectedAmount: number | null;
@@ -28,9 +33,16 @@ export interface MonthMetrics {
   unassignedCount: number;
 }
 
+export interface IncomeRowForMetrics extends IncomeEventForMetrics {
+  id: number;
+  expectedDate: string;
+  name?: string | null;
+}
+
 export function calculateMonthMetrics(
-  incomeEvents: IncomeEventForMetrics[],
-  billInstances: BillInstanceForMetrics[]
+  incomeEvents: IncomeRowForMetrics[],
+  billInstances: BillInstanceForMetrics[],
+  monthKey: string
 ): MonthMetrics {
   const expectedIncome = incomeEvents.reduce(
     (sum, e) => sum + (e.expectedAmount ?? 0),
@@ -39,6 +51,15 @@ export function calculateMonthMetrics(
   const receivedIncome = incomeEvents.reduce(
     (sum, e) => sum + (e.actualAmount ?? 0),
     0
+  );
+
+  const windows = buildPaycheckWindows(
+    incomeEvents.map((e) => ({
+      id: e.id,
+      expectedDate: e.expectedDate,
+      name: e.name,
+    })) as IncomeEventForWindow[],
+    monthKey
   );
 
   let plannedExpenses = 0;
@@ -65,7 +86,7 @@ export function calculateMonthMetrics(
     ) {
       overdueCount++;
     }
-    if (!b.assignedIncomeEventId && !b.assignedGroupKey) {
+    if (assignBillToWindow(b, windows) == null) {
       unassignedCount++;
     }
   }

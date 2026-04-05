@@ -8,8 +8,14 @@ import { revalidatePath } from "next/cache";
 import { buildPaycheckWindows } from "@/lib/paycheck-windows";
 import { assignBillToWindow } from "@/lib/paycheck-windows";
 import { calculateMonthMetrics } from "@/lib/month-metrics";
+import {
+  buildMonthAttention,
+  buildPaycheckSummaries,
+  type BillForFunding,
+} from "@/lib/month-funding";
 import type { IncomeEventForWindow } from "@/lib/paycheck-windows";
 import { propagateMonth } from "@/lib/propagate-month";
+import { recomputeAutoAssignmentsForMonth } from "@/lib/recompute-auto-assignments";
 import { getSessionForServer } from "@/lib/auth-server";
 
 function hasDb() {
@@ -111,13 +117,30 @@ export async function getMonthWithData(monthKey: string) {
       displayIncomeEventId: assigned?.incomeEventId ?? null,
     };
   });
-  const metrics = calculateMonthMetrics(income, bills);
+  const metrics = calculateMonthMetrics(income, bills, monthKey);
+  const billsForFunding = bills as BillForFunding[];
+  const paycheckSummaries = buildPaycheckSummaries(
+    windows,
+    billsForFunding,
+    income.map((e) => ({
+      id: e.id,
+      expectedAmount: e.expectedAmount,
+      actualAmount: e.actualAmount,
+    }))
+  );
+  const attention = buildMonthAttention(
+    windows,
+    billsForFunding,
+    paycheckSummaries
+  );
   return {
     month,
     incomeEvents: income,
     billInstances: billsWithWindow,
     windows,
     metrics,
+    paycheckSummaries,
+    attention,
   };
 }
 
@@ -304,6 +327,7 @@ export async function createMonthFromPropagation(draft: {
       status: "expected",
     });
   }
+  await recomputeAutoAssignmentsForMonth(newMonth.id, draft.targetMonthKey);
   revalidatePath("/months");
   revalidatePath(`/months/${draft.targetMonthKey}`);
   return { success: true, monthKey: draft.targetMonthKey };

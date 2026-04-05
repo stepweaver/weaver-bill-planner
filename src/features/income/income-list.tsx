@@ -1,3 +1,5 @@
+"use client";
+
 import { IncomeRow } from "./income-row";
 
 type IncomeEvent = {

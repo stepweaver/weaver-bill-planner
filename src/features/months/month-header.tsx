@@ -39,7 +39,7 @@ export async function MonthHeader({
       <div className="grid grid-cols-2 gap-2 order-3 min-w-0 w-full sm:w-auto sm:max-w-xs">
         <Link href={`/months/new?from=${monthKey}`}>
           <Button variant="secondary" className="w-full whitespace-nowrap">
-            Create month from this
+            Roll forward
           </Button>
         </Link>
         <CloseMonthButton monthKey={monthKey} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,28 @@ type Draft = {
   incomeEvents: DraftIncome[];
 };
 
+function validIncomeRows(d: Draft): DraftIncome[] {
+  return d.incomeEvents.filter((e) => e.name?.trim() && e.expectedDate);
+}
+
+function getDraftExceptions(d: Draft): string[] {
+  const messages: string[] = [];
+  if (validIncomeRows(d).length === 0) {
+    messages.push(
+      "No income with both a name and date. Paycheck windows (and auto-assignment) work best after you add at least one."
+    );
+  }
+  for (const b of d.billInstances) {
+    if (!b.dueDate) {
+      messages.push(`"${b.name}" has no due date — it will stay unassigned until you set one.`);
+    }
+    if (b.plannedAmount == null || b.plannedAmount <= 0) {
+      messages.push(`"${b.name}" has no planned amount — set an estimate when you can.`);
+    }
+  }
+  return messages;
+}
+
 export function CreateMonthWizard({
   monthsList,
   defaultFromKey,
@@ -61,6 +83,12 @@ export function CreateMonthWizard({
   });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [loading, setLoading] = useState(false);
+  const [editAllRows, setEditAllRows] = useState(false);
+
+  const exceptions = useMemo(
+    () => (draft ? getDraftExceptions(draft) : []),
+    [draft]
+  );
 
   const hasExistingMonths = monthsList.length > 0;
 
@@ -83,6 +111,7 @@ export function CreateMonthWizard({
         return;
       }
       setDraft(result);
+      setEditAllRows(false);
       setStep("review");
     } finally {
       setLoading(false);
@@ -198,11 +227,13 @@ export function CreateMonthWizard({
 
   if (!draft) return null;
 
+  const incomeReady = validIncomeRows(draft).length;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-medium">
-          Review: {draft.label} ({draft.targetMonthKey})
+          Roll forward: {draft.label} ({draft.targetMonthKey})
         </h2>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setStep("choose")}>
@@ -213,98 +244,167 @@ export function CreateMonthWizard({
           </Button>
         </div>
       </div>
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Bills ({draft.billInstances.length})</CardTitle>
+          <CardTitle className="text-base">Quick check</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {draft.billInstances.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No recurring bills to copy.</p>
-          ) : (
-            <div className="space-y-3">
-              {draft.billInstances.map((b, i) => (
-                <div key={i} className="flex flex-wrap items-center gap-2 rounded border p-2 text-sm">
-                  <Input
-                    className="w-32 font-medium"
-                    value={b.name}
-                    onChange={(e) => updateBill(i, "name", e.target.value)}
-                  />
-                  <Input
-                    type="date"
-                    className="w-36"
-                    value={b.dueDate ?? ""}
-                    onChange={(e) => updateBill(i, "dueDate", e.target.value || null)}
-                  />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    className="w-24"
-                    placeholder="Amount"
-                    value={b.plannedAmount ?? ""}
-                    onChange={(e) => updateBill(i, "plannedAmount", e.target.value ? Number(e.target.value) : null)}
-                  />
-                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeBill(i)}>
-                    Remove
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-base">Income ({draft.incomeEvents.length})</CardTitle>
-          <Button type="button" variant="outline" size="sm" onClick={addIncome}>
-            Add income
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {draft.incomeEvents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No income yet. Add paychecks or other income to define paycheck windows; bills will be grouped by when they’re due relative to each income date.
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {draft.billInstances.length} bills · {incomeReady} income line
+            {incomeReady !== 1 ? "s" : ""} ready (name + date) · {draft.incomeEvents.length} total income
+            rows
+          </p>
+          {exceptions.length === 0 ? (
+            <p className="text-sm text-green-700 dark:text-green-400">
+              No common issues flagged. You can save now and adjust in the month workspace.
             </p>
           ) : (
-            <div className="space-y-3">
-              {draft.incomeEvents.map((e, i) => (
-                <div key={i} className="flex flex-wrap items-center gap-2 rounded border p-2 text-sm">
-                  <Input
-                    className="w-32 font-medium"
-                    placeholder="Name"
-                    value={e.name}
-                    onChange={(ev) => updateIncome(i, "name", ev.target.value)}
-                  />
-                  <Input
-                    type="date"
-                    className="w-36"
-                    value={e.expectedDate}
-                    onChange={(ev) => updateIncome(i, "expectedDate", ev.target.value)}
-                  />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    className="w-24"
-                    placeholder="Amount"
-                    value={e.expectedAmount ?? ""}
-                    onChange={(ev) =>
-                      updateIncome(i, "expectedAmount", ev.target.value ? Number(ev.target.value) : null)
-                    }
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => removeIncome(i)}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              ))}
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+              <p className="text-xs font-medium text-amber-950 dark:text-amber-100 uppercase tracking-wider">
+                Exceptions ({exceptions.length})
+              </p>
+              <ul className="mt-2 list-disc pl-5 text-sm text-foreground space-y-1">
+                {exceptions.map((msg, i) => (
+                  <li key={i}>{msg}</li>
+                ))}
+              </ul>
             </div>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setEditAllRows((v) => !v)}
+          >
+            {editAllRows ? "Hide" : "Show"} full row editor
+          </Button>
+          {!editAllRows && (
+            <p className="text-xs text-muted-foreground">
+              Save anytime; recurring structure copies forward and auto-assignment runs after save when
+              due dates and income line up.
+            </p>
           )}
         </CardContent>
       </Card>
+
+      {editAllRows && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Bills ({draft.billInstances.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {draft.billInstances.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No recurring bills to copy.</p>
+              ) : (
+                <div className="space-y-3">
+                  {draft.billInstances.map((b, i) => (
+                    <div
+                      key={i}
+                      className="flex flex-wrap items-center gap-2 rounded border p-2 text-sm"
+                    >
+                      <Input
+                        className="w-32 font-medium"
+                        value={b.name}
+                        onChange={(e) => updateBill(i, "name", e.target.value)}
+                      />
+                      <Input
+                        type="date"
+                        className="w-36"
+                        value={b.dueDate ?? ""}
+                        onChange={(e) => updateBill(i, "dueDate", e.target.value || null)}
+                      />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="w-24"
+                        placeholder="Amount"
+                        value={b.plannedAmount ?? ""}
+                        onChange={(e) =>
+                          updateBill(
+                            i,
+                            "plannedAmount",
+                            e.target.value ? Number(e.target.value) : null
+                          )
+                        }
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => removeBill(i)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-base">Income ({draft.incomeEvents.length})</CardTitle>
+              <Button type="button" variant="outline" size="sm" onClick={addIncome}>
+                Add income
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {draft.incomeEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No income yet. Add paychecks to define funding windows for the new month.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {draft.incomeEvents.map((e, i) => (
+                    <div
+                      key={i}
+                      className="flex flex-wrap items-center gap-2 rounded border p-2 text-sm"
+                    >
+                      <Input
+                        className="w-32 font-medium"
+                        placeholder="Name"
+                        value={e.name}
+                        onChange={(ev) => updateIncome(i, "name", ev.target.value)}
+                      />
+                      <Input
+                        type="date"
+                        className="w-36"
+                        value={e.expectedDate}
+                        onChange={(ev) => updateIncome(i, "expectedDate", ev.target.value)}
+                      />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="w-24"
+                        placeholder="Amount"
+                        value={e.expectedAmount ?? ""}
+                        onChange={(ev) =>
+                          updateIncome(
+                            i,
+                            "expectedAmount",
+                            ev.target.value ? Number(ev.target.value) : null
+                          )
+                        }
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => removeIncome(i)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
