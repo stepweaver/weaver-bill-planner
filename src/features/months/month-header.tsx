@@ -5,7 +5,10 @@ import { getMonthByKey } from "./actions";
 
 function prevNextMonth(monthKey: string, delta: number): string {
   const [y, m] = monthKey.split("-").map(Number);
-  const d = delta === 1 ? addMonths(new Date(y, m - 1, 1), 1) : subMonths(new Date(y, m - 1, 1), 1);
+  const d =
+    delta === 1
+      ? addMonths(new Date(y, m - 1, 1), 1)
+      : subMonths(new Date(y, m - 1, 1), 1);
   return format(d, "yyyy-MM");
 }
 
@@ -20,31 +23,39 @@ export async function MonthHeader({
   const nextKey = prevNextMonth(monthKey, 1);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-4">
-      <div className="grid grid-cols-2 gap-2 order-1 w-full sm:w-auto sm:max-w-xs">
-        <Link href={`/months/${prevKey}`}>
-          <Button variant="outline" className="w-full whitespace-nowrap">
-            Previous
-          </Button>
-        </Link>
-        <Link href={`/months/${nextKey}`}>
-          <Button variant="outline" className="w-full whitespace-nowrap">
-            Next
-          </Button>
-        </Link>
+    <header className="border-b border-border pb-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="min-w-0 space-y-1">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Month
+          </p>
+          <h1 className="terminal-glow text-2xl sm:text-3xl font-semibold tracking-tight">
+            {label}
+          </h1>
+        </div>
+        <nav
+          className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0"
+          aria-label="Month actions"
+        >
+          <Link href={`/months/${prevKey}`}>
+            <Button variant="outline" size="sm" className="whitespace-nowrap">
+              Previous
+            </Button>
+          </Link>
+          <Link href={`/months/${nextKey}`}>
+            <Button variant="outline" size="sm" className="whitespace-nowrap">
+              Next
+            </Button>
+          </Link>
+          <Link href={`/months/new?from=${monthKey}`}>
+            <Button variant="secondary" size="sm" className="whitespace-nowrap">
+              Roll forward
+            </Button>
+          </Link>
+          <CloseMonthButton monthKey={monthKey} />
+        </nav>
       </div>
-      <h1 className="terminal-glow w-full text-2xl sm:text-3xl font-semibold tracking-tight text-center order-2">
-        {label}
-      </h1>
-      <div className="grid grid-cols-2 gap-2 order-3 min-w-0 w-full sm:w-auto sm:max-w-xs">
-        <Link href={`/months/new?from=${monthKey}`}>
-          <Button variant="secondary" className="w-full whitespace-nowrap">
-            Roll forward
-          </Button>
-        </Link>
-        <CloseMonthButton monthKey={monthKey} />
-      </div>
-    </div>
+    </header>
   );
 }
 
@@ -53,9 +64,9 @@ async function CloseMonthButton({ monthKey }: { monthKey: string }) {
   if (!month || month.status === "closed") return null;
   const { closeMonthFormAction } = await import("./actions");
   return (
-    <form action={closeMonthFormAction} className="min-w-0">
+    <form action={closeMonthFormAction} className="inline min-w-0">
       <input type="hidden" name="monthKey" value={monthKey} />
-      <Button type="submit" variant="outline" className="w-full whitespace-nowrap">
+      <Button type="submit" variant="outline" size="sm" className="whitespace-nowrap">
         Close month
       </Button>
     </form>

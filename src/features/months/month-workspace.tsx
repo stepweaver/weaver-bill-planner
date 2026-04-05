@@ -7,12 +7,21 @@ import {
   BillLedger,
   BILL_FILTER_UNASSIGNED,
   filterBillsByWindowKey,
+  filterBillsByStatus,
+  type BillStatusFilter,
 } from "@/features/bills/bill-ledger";
 import { BillTableByWindow } from "@/features/bills/bill-table-by-window";
 import { IncomeList } from "@/features/income/income-list";
 import { AddIncomeButton } from "@/features/income/add-income-button";
 import { MonthHud } from "./month-hud";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { MonthAttention, PaycheckWindowSummary } from "@/lib/month-funding";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 import type { MonthMetrics } from "@/lib/month-metrics";
@@ -67,11 +76,12 @@ export function MonthWorkspace({
 }) {
   const [windowFilter, setWindowFilter] = useState<string | null>(null);
   const [groupByPaycheck, setGroupByPaycheck] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<BillStatusFilter>("all");
 
-  const groupedBills = useMemo(
-    () => filterBillsByWindowKey(billInstances, windowFilter),
-    [billInstances, windowFilter]
-  );
+  const groupedBills = useMemo(() => {
+    const byWindow = filterBillsByWindowKey(billInstances, windowFilter);
+    return filterBillsByStatus(byWindow, statusFilter);
+  }, [billInstances, windowFilter, statusFilter]);
 
   const paycheckSelectKey =
     windowFilter === BILL_FILTER_UNASSIGNED ? null : windowFilter;
@@ -81,6 +91,26 @@ export function MonthWorkspace({
       <MonthAttentionStrip attention={attention} />
       <MonthHud metrics={metrics} />
       <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-muted-foreground uppercase tracking-wider">
+            Status
+          </span>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as BillStatusFilter)}
+          >
+            <SelectTrigger className="h-8 w-[132px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="scheduled">Due</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="skipped">Skipped</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <Button
           type="button"
           variant={groupByPaycheck ? "secondary" : "outline"}
@@ -122,6 +152,7 @@ export function MonthWorkspace({
               monthKey={monthKey}
               windows={windows}
               windowFilterKey={windowFilter}
+              statusFilter={statusFilter}
             />
           )}
         </div>
@@ -131,8 +162,11 @@ export function MonthWorkspace({
             summaries={paycheckSummaries}
             selectedWindowKey={paycheckSelectKey}
             onSelectWindow={(key) => setWindowFilter(key)}
-            hasActiveFilter={windowFilter != null}
-            onClearFilter={() => setWindowFilter(null)}
+            hasActiveFilter={windowFilter != null || statusFilter !== "all"}
+            onClearFilter={() => {
+              setWindowFilter(null);
+              setStatusFilter("all");
+            }}
           />
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-2">

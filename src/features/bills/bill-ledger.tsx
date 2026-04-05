@@ -9,6 +9,29 @@ import { Button } from "@/components/ui/button";
 
 export const BILL_FILTER_UNASSIGNED = "__unassigned__";
 
+export type BillStatusFilter = "all" | "scheduled" | "pending" | "paid" | "skipped";
+
+type BillInstanceBase = {
+  status: string;
+  plannedAmount: number | null;
+  invoiceAmount: number | null;
+  amountPaid: number | null;
+};
+
+export function filterBillsByStatus<T extends BillInstanceBase>(
+  bills: T[],
+  filter: BillStatusFilter
+): T[] {
+  if (filter === "all") return bills;
+  if (filter === "paid") {
+    return bills.filter((b) => {
+      const eff = getEffectivePlannedAmount(b.plannedAmount, b.invoiceAmount);
+      return isBillPaid(b.status, b.amountPaid, eff);
+    });
+  }
+  return bills.filter((b) => b.status === filter);
+}
+
 export function filterBillsByWindowKey<T extends { displayWindowKey: string | null }>(
   bills: T[],
   windowFilterKey: string | null
@@ -60,23 +83,28 @@ export function BillLedger({
   monthKey,
   windows,
   windowFilterKey,
+  statusFilter,
 }: {
   bills: BillInstance[];
   monthId: number;
   monthKey: string;
   windows: PaycheckWindow[];
   windowFilterKey: string | null;
+  statusFilter: BillStatusFilter;
 }) {
   const [paidOpen, setPaidOpen] = useState(false);
 
-  const filtered = useMemo(
-    () => filterBillsByWindowKey(bills, windowFilterKey),
-    [bills, windowFilterKey]
-  );
+  const filtered = useMemo(() => {
+    const byWindow = filterBillsByWindowKey(bills, windowFilterKey);
+    return filterBillsByStatus(byWindow, statusFilter);
+  }, [bills, windowFilterKey, statusFilter]);
 
   const sorted = useMemo(() => sortBillsByDueDateThenStatus(filtered), [filtered]);
 
   const { active, paid } = useMemo(() => {
+    if (statusFilter !== "all") {
+      return { active: sorted, paid: [] as BillInstance[] };
+    }
     const a: BillInstance[] = [];
     const p: BillInstance[] = [];
     for (const bill of sorted) {
@@ -85,7 +113,7 @@ export function BillLedger({
       else a.push(bill);
     }
     return { active: a, paid: p };
-  }, [sorted]);
+  }, [sorted, statusFilter]);
 
   return (
     <div className="space-y-3">
@@ -105,7 +133,7 @@ export function BillLedger({
         ) : (
           active.map((b) => (
             <BillRow
-              key={b.id}
+              key={`${b.id}-${String(b.updatedAt ?? "")}`}
               bill={b}
               monthId={monthId}
               monthKey={monthKey}

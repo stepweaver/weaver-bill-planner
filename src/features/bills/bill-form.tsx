@@ -17,6 +17,7 @@ import {
 import { createBill, updateBill } from "./actions";
 import { toast } from "sonner";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
+import { cn } from "@/lib/utils";
 
 type Props = {
   monthId: number;
@@ -87,25 +88,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 pt-2">
-      <div className="space-y-2">
-        <Label>Status</Label>
-        <Select
-          value={form.watch("status")}
-          onValueChange={(v) => form.setValue("status", v as "scheduled" | "pending" | "paid" | "skipped")}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="scheduled">Due (not yet sent)</SelectItem>
-            <SelectItem value="pending">Pending (sent, not yet cleared)</SelectItem>
-            <SelectItem value="paid">Paid (cleared your bank)</SelectItem>
-            <SelectItem value="skipped">Skipped</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">Pending = payment sent. Paid = cleared your bank.</p>
-      </div>
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
       <div className="space-y-2">
         <Label htmlFor="name">Name</Label>
         <Input id="name" {...form.register("name")} placeholder="Rent" />
@@ -117,16 +100,61 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
         <Label htmlFor="dueDate">Due date</Label>
         <Input id="dueDate" type="date" {...form.register("dueDate")} />
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-2">
-          <Label htmlFor="plannedAmount">Amount due</Label>
-          <Input id="plannedAmount" type="number" step="0.01" {...form.register("plannedAmount")} />
+
+      <div
+        className={cn(
+          "rounded-lg border border-border bg-muted/20 px-3 py-3 space-y-3",
+          "ring-1 ring-foreground/5"
+        )}
+      >
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Payment
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
+          <div className="space-y-2 sm:col-span-1">
+            <Label>Status</Label>
+            <Select
+              value={form.watch("status")}
+              onValueChange={(v) =>
+                form.setValue("status", v as "scheduled" | "pending" | "paid" | "skipped")
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="scheduled">Due (not yet sent)</SelectItem>
+                <SelectItem value="pending">Pending (sent, not cleared)</SelectItem>
+                <SelectItem value="paid">Paid (cleared bank)</SelectItem>
+                <SelectItem value="skipped">Skipped</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="plannedAmount">Amount due</Label>
+            <Input
+              id="plannedAmount"
+              type="number"
+              step="0.01"
+              {...form.register("plannedAmount")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="amountPaid">Amount paid</Label>
+            <Input
+              id="amountPaid"
+              type="number"
+              step="0.01"
+              {...form.register("amountPaid")}
+            />
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="amountPaid">Amount paid</Label>
-          <Input id="amountPaid" type="number" step="0.01" {...form.register("amountPaid")} />
-        </div>
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          Pending = payment sent. Paid = cleared your bank. Set amounts next to the status you use
+          most.
+        </p>
       </div>
+
       <div className="space-y-2">
         <Label htmlFor="paymentUrl">Payment URL</Label>
         <Input id="paymentUrl" type="url" {...form.register("paymentUrl")} placeholder="https://..." />

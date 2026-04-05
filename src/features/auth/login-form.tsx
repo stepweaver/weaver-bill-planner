@@ -56,7 +56,11 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-4"
+      autoComplete="off"
+    >
       <div className="space-y-2">
         <Label htmlFor="username">Username</Label>
         <Input
@@ -85,6 +89,10 @@ export function LoginForm() {
       <Button type="submit" className="w-full" disabled={isLoading}>
         {isLoading ? "Signing in…" : "Sign in"}
       </Button>
+      <p className="text-[11px] text-muted-foreground leading-snug text-center">
+        If your browser asks to save the password every time, turn off “offer to save passwords”
+        for this site under Brave Settings → Passwords (or use a password manager extension).
+      </p>
     </form>
   );
 }
