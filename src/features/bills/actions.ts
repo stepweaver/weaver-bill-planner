@@ -223,6 +223,96 @@ export async function quickUpdateBillNotes(
   return { success: true };
 }
 
+export async function quickUpdateBillInlineDetails(
+  billId: number,
+  monthId: number,
+  monthKey: string,
+  {
+    amountPaid,
+    notes,
+    windowKey,
+  }: {
+    amountPaid: number | null;
+    notes: string | null;
+    windowKey: string | null;
+  }
+): Promise<{ success?: true; error?: string }> {
+  const gate = await assertBillOwned(billId, monthId);
+  if ("error" in gate) return gate;
+
+  const [currentBill] = await db
+    .select({
+      amountPaid: billInstances.amountPaid,
+      notes: billInstances.notes,
+      manualAssignment: billInstances.manualAssignment,
+      assignedGroupKey: billInstances.assignedGroupKey,
+    })
+    .from(billInstances)
+    .where(eq(billInstances.id, billId))
+    .limit(1);
+
+  if (!currentBill) return { error: "Not found" };
+
+  const trimmedNotes = notes?.trim() ? notes.trim() : null;
+  const currentWindowKey =
+    currentBill.manualAssignment && currentBill.assignedGroupKey
+      ? currentBill.assignedGroupKey
+      : null;
+  const nextWindowKey = windowKey && windowKey !== "" ? windowKey : null;
+  const windowChanged = currentWindowKey !== nextWindowKey;
+
+  await db
+    .update(billInstances)
+    .set({
+      amountPaid,
+      notes: trimmedNotes,
+      ...(windowChanged
+        ? nextWindowKey == null
+          ? {
+              manualAssignment: false,
+              assignedGroupKey: null,
+              assignedIncomeEventId: null,
+            }
+          : {}
+        : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(billInstances.id, billId));
+
+  if (windowChanged) {
+    if (nextWindowKey == null) {
+      await recomputeAutoAssignmentsForMonth(monthId, monthKey);
+    } else {
+      const income = await db
+        .select({
+          id: incomeEvents.id,
+          expectedDate: incomeEvents.expectedDate,
+          name: incomeEvents.name,
+        })
+        .from(incomeEvents)
+        .where(eq(incomeEvents.monthId, monthId));
+      const windows = buildPaycheckWindows(
+        income as IncomeEventForWindow[],
+        monthKey
+      );
+      const w = windows.find((x) => x.key === nextWindowKey);
+      if (!w) return { error: "Invalid paycheck window" };
+      await db
+        .update(billInstances)
+        .set({
+          manualAssignment: true,
+          assignedGroupKey: nextWindowKey,
+          assignedIncomeEventId: w.incomeEventId,
+          updatedAt: new Date(),
+        })
+        .where(eq(billInstances.id, billId));
+    }
+  }
+
+  revalidatePath(`/months/${monthKey}`, "page");
+  return { success: true };
+}
+
 /** `windowKey` null or empty string = return to auto-assignment */
 export async function quickAssignBillToWindow(
   billId: number,

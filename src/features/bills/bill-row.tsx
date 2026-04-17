@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,9 +20,7 @@ import {
 import { BillForm } from "./bill-form";
 import {
   deleteBill,
-  quickAssignBillToWindow,
-  quickUpdateBillAmountPaid,
-  quickUpdateBillNotes,
+  quickUpdateBillInlineDetails,
   quickUpdateBillStatus,
 } from "./actions";
 import { useRouter } from "next/navigation";
@@ -91,6 +89,9 @@ export function BillRow({
   const [paidDraft, setPaidDraft] = useState(() =>
     bill.amountPaid != null ? String(bill.amountPaid) : ""
   );
+  const [assignDraft, setAssignDraft] = useState(() =>
+    bill.manualAssignment && bill.assignedGroupKey ? bill.assignedGroupKey : "auto"
+  );
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -148,6 +149,20 @@ export function BillRow({
     });
   }
 
+  useEffect(() => {
+    setNotesDraft(bill.notes ?? "");
+    setPaidDraft(bill.amountPaid != null ? String(bill.amountPaid) : "");
+    setAssignDraft(
+      bill.manualAssignment && bill.assignedGroupKey ? bill.assignedGroupKey : "auto"
+    );
+  }, [
+    bill.id,
+    bill.notes,
+    bill.amountPaid,
+    bill.manualAssignment,
+    bill.assignedGroupKey,
+  ]);
+
   const nameCell = bill.paymentUrl ? (
     <a
       href={bill.paymentUrl}
@@ -203,6 +218,36 @@ export function BillRow({
   const assignValue =
     bill.manualAssignment && bill.assignedGroupKey ? bill.assignedGroupKey : "auto";
 
+  const trimmedNotesDraft = notesDraft.trim();
+  const parsedPaidDraft = paidDraft.trim() === "" ? null : Number(paidDraft.trim());
+  const paidDraftIsValid = paidDraft.trim() === "" || !Number.isNaN(parsedPaidDraft);
+  const paidChanged =
+    paidDraftIsValid && (bill.amountPaid ?? null) !== (parsedPaidDraft ?? null);
+  const notesChanged = (bill.notes?.trim() ?? "") !== trimmedNotesDraft;
+  const assignmentChanged = assignDraft !== assignValue;
+  const hasInlineChanges = paidChanged || notesChanged || assignmentChanged;
+
+  function resetInlineDrafts() {
+    setNotesDraft(bill.notes ?? "");
+    setPaidDraft(bill.amountPaid != null ? String(bill.amountPaid) : "");
+    setAssignDraft(assignValue);
+  }
+
+  function handleInlineSave() {
+    if (!paidDraftIsValid) {
+      toast.error("Enter a valid paid amount");
+      return;
+    }
+    if (!hasInlineChanges) return;
+    runQuick(() =>
+      quickUpdateBillInlineDetails(bill.id, monthId, monthKey, {
+        amountPaid: parsedPaidDraft ?? null,
+        notes: trimmedNotesDraft || null,
+        windowKey: assignDraft === "auto" ? null : assignDraft,
+      })
+    );
+  }
+
   const inlineControls = (
     <div className="flex flex-wrap items-center gap-2">
       <Select
@@ -231,31 +276,20 @@ export function BillRow({
           inputMode="decimal"
           value={paidDraft}
           onChange={(e) => setPaidDraft(e.target.value)}
-          onBlur={() => {
-            const t = paidDraft.trim();
-            const n = t === "" ? null : Number(t);
-            if (t !== "" && Number.isNaN(n!)) {
-              setPaidDraft(bill.amountPaid != null ? String(bill.amountPaid) : "");
-              return;
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleInlineSave();
             }
-            if ((bill.amountPaid ?? null) === n) return;
-            runQuick(() => quickUpdateBillAmountPaid(bill.id, monthId, monthKey, n));
           }}
         />
       </div>
       <Select
         disabled={pending}
-        value={assignValue}
+        value={assignDraft}
         onValueChange={(v) => {
           if (!v) return;
-          runQuick(() =>
-            quickAssignBillToWindow(
-              bill.id,
-              monthId,
-              monthKey,
-              v === "auto" ? null : v
-            )
-          );
+          setAssignDraft(v);
         }}
       >
         <SelectTrigger className="h-7 min-w-[120px] max-w-[160px] text-[11px]">
@@ -276,13 +310,36 @@ export function BillRow({
         className="h-7 min-w-[6rem] flex-1 max-w-[200px] text-[11px]"
         value={notesDraft}
         onChange={(e) => setNotesDraft(e.target.value)}
-        onBlur={() => {
-          const next = notesDraft.trim() || null;
-          const prev = bill.notes?.trim() || null;
-          if (next === prev) return;
-          runQuick(() => quickUpdateBillNotes(bill.id, monthId, monthKey, next));
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            handleInlineSave();
+          }
         }}
       />
+      {hasInlineChanges && (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 px-2 text-[11px] shrink-0"
+            disabled={pending || !paidDraftIsValid}
+            onClick={handleInlineSave}
+          >
+            Save
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-[11px] shrink-0"
+            disabled={pending}
+            onClick={resetInlineDrafts}
+          >
+            Cancel
+          </Button>
+        </>
+      )}
       {fullEdit}
       <Button
         type="button"
