@@ -1,9 +1,13 @@
+import { addDays, parseISO, startOfDay } from "date-fns";
 import { getEffectivePlannedAmount, isBillPaid, isBillOverdue } from "./bill-utils";
 import {
   assignBillToWindow,
   buildPaycheckWindows,
   type IncomeEventForWindow,
 } from "./paycheck-windows";
+
+/** Matches `DUE_SOON_DAYS` in month-funding / "Due soon" on the month workspace. */
+const DUE_SOON_DAYS = 7;
 
 export interface IncomeEventForMetrics {
   expectedAmount: number | null;
@@ -30,6 +34,11 @@ export interface MonthMetrics {
   /** Leftover = received income minus paid expenses (what you have after bills paid so far). */
   leftover: number;
   overdueCount: number;
+  /**
+   * Unpaid bills with due date from today through today + 7 days, excluding overdue.
+   * Aligns with `buildMonthAttention` dueSoonIds.
+   */
+  dueSoonCount: number;
   unassignedCount: number;
 }
 
@@ -65,7 +74,11 @@ export function calculateMonthMetrics(
   let plannedExpenses = 0;
   let paidExpenses = 0;
   let overdueCount = 0;
+  let dueSoonCount = 0;
   let unassignedCount = 0;
+
+  const today = startOfDay(new Date());
+  const soonEnd = addDays(today, DUE_SOON_DAYS);
 
   for (const b of billInstances) {
     const effective = getEffectivePlannedAmount(
@@ -73,7 +86,8 @@ export function calculateMonthMetrics(
       b.invoiceAmount
     );
     plannedExpenses += effective;
-    if (isBillPaid(b.status, b.amountPaid, effective)) {
+    const paid = isBillPaid(b.status, b.amountPaid, effective);
+    if (paid) {
       paidExpenses += b.amountPaid ?? effective;
     }
     if (
@@ -85,6 +99,16 @@ export function calculateMonthMetrics(
       )
     ) {
       overdueCount++;
+    }
+    if (
+      !paid &&
+      b.dueDate &&
+      !isBillOverdue(b.dueDate, b.status, b.amountPaid, effective)
+    ) {
+      const due = startOfDay(parseISO(String(b.dueDate).slice(0, 10)));
+      if (due >= today && due <= soonEnd) {
+        dueSoonCount++;
+      }
     }
     if (assignBillToWindow(b, windows) == null) {
       unassignedCount++;
@@ -102,6 +126,7 @@ export function calculateMonthMetrics(
     remainingExpenses,
     leftover,
     overdueCount,
+    dueSoonCount,
     unassignedCount,
   };
 }

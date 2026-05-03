@@ -7,7 +7,7 @@ import { endOfMonth } from "date-fns";
 import { revalidatePath } from "next/cache";
 import { buildPaycheckWindows } from "@/lib/paycheck-windows";
 import { assignBillToWindow } from "@/lib/paycheck-windows";
-import { calculateMonthMetrics } from "@/lib/month-metrics";
+import { calculateMonthMetrics, type MonthMetrics } from "@/lib/month-metrics";
 import {
   buildMonthAttention,
   buildPaycheckSummaries,
@@ -48,15 +48,63 @@ export async function getMonthByIdAndLedger(
   return month ?? null;
 }
 
-export async function getMonthsList() {
+export type MonthListCardSummary = MonthMetrics & {
+  /** Bills explicitly marked pending (sent, not cleared). */
+  pendingBillCount: number;
+};
+
+export type MonthListRow = typeof months.$inferSelect & {
+  cardSummary: MonthListCardSummary;
+};
+
+export async function getMonthsList(): Promise<MonthListRow[]> {
   if (!hasDb()) return [];
   const ledgerId = await getDefaultLedgerId();
   if (!ledgerId) return [];
-  return db
+  const monthRows = await db
     .select()
     .from(months)
     .where(eq(months.ledgerId, ledgerId))
     .orderBy(desc(months.monthKey));
+  if (monthRows.length === 0) return [];
+
+  const monthIds = monthRows.map((m) => m.id);
+  const [incomeRows, billRows] = await Promise.all([
+    db
+      .select()
+      .from(incomeEvents)
+      .where(inArray(incomeEvents.monthId, monthIds))
+      .orderBy(asc(incomeEvents.expectedDate), asc(incomeEvents.sortOrder)),
+    db
+      .select()
+      .from(billInstances)
+      .where(inArray(billInstances.monthId, monthIds))
+      .orderBy(asc(billInstances.sortOrder), asc(billInstances.dueDate)),
+  ]);
+
+  const incomeByMonthId = new Map<number, (typeof incomeRows)[number][]>();
+  for (const row of incomeRows) {
+    const list = incomeByMonthId.get(row.monthId) ?? [];
+    list.push(row);
+    incomeByMonthId.set(row.monthId, list);
+  }
+  const billsByMonthId = new Map<number, (typeof billRows)[number][]>();
+  for (const row of billRows) {
+    const list = billsByMonthId.get(row.monthId) ?? [];
+    list.push(row);
+    billsByMonthId.set(row.monthId, list);
+  }
+
+  return monthRows.map((month) => {
+    const income = incomeByMonthId.get(month.id) ?? [];
+    const bills = billsByMonthId.get(month.id) ?? [];
+    const metrics = calculateMonthMetrics(income, bills, month.monthKey);
+    const pendingBillCount = bills.filter((b) => b.status === "pending").length;
+    return {
+      ...month,
+      cardSummary: { ...metrics, pendingBillCount },
+    };
+  });
 }
 
 export async function getMonthByKey(monthKey: string) {
