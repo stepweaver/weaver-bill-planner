@@ -21,19 +21,13 @@ type BillInstance = {
   updatedAt?: Date | string | null;
 };
 
-/** Sort order for secondary sort: scheduled/skipped first, then pending, then paid */
-function statusSortOrder(status: string): number {
-  if (status === "paid") return 2;
-  if (status === "pending") return 1;
-  return 0; // scheduled, skipped, or other
-}
-
-function sortBillsByDueDateThenStatus(bills: BillInstance[]): BillInstance[] {
+/** Due date ascending, then stable id tie-break (order does not change when status updates). */
+function sortBillsByDueDateThenId(bills: BillInstance[]): BillInstance[] {
   return [...bills].sort((a, b) => {
     const dateA = a.dueDate ?? "";
     const dateB = b.dueDate ?? "";
     if (dateA !== dateB) return dateA.localeCompare(dateB);
-    return statusSortOrder(a.status) - statusSortOrder(b.status);
+    return a.id - b.id;
   });
 }
 
@@ -73,7 +67,7 @@ export function BillTableByWindow({
       {windows
         .filter((win) => (billsByWindow.get(win.key) ?? []).length > 0)
         .map((win) => {
-          const winBills = sortBillsByDueDateThenStatus(billsByWindow.get(win.key) ?? []);
+          const winBills = sortBillsByDueDateThenId(billsByWindow.get(win.key) ?? []);
           const isBefore = win.key.startsWith("pre-");
           const colorClass = isBefore
             ? "border-l-4 border-white/30 bg-transparent"
@@ -84,7 +78,7 @@ export function BillTableByWindow({
                 <ul className="space-y-0 text-xs">
                   {winBills.map((b) => (
                     <BillRow
-                      key={`${b.id}-${String(b.updatedAt ?? "")}`}
+                      key={b.id}
                       bill={b}
                       monthId={monthId}
                       monthKey={monthKey}
@@ -104,9 +98,9 @@ export function BillTableByWindow({
           </h3>
           <div className="min-w-0">
             <ul className="space-y-0 text-xs">
-              {sortBillsByDueDateThenStatus(billsByWindow.get("unassigned")!).map((b) => (
+              {sortBillsByDueDateThenId(billsByWindow.get("unassigned")!).map((b) => (
                 <BillRow
-                  key={`${b.id}-${String(b.updatedAt ?? "")}`}
+                  key={b.id}
                   bill={b}
                   monthId={monthId}
                   monthKey={monthKey}

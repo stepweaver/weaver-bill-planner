@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -10,19 +9,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { BillForm } from "./bill-form";
-import {
-  deleteBill,
-  quickUpdateBillInlineDetails,
-  quickUpdateBillStatus,
-} from "./actions";
+import { deleteBill } from "./actions";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
@@ -68,6 +56,14 @@ function formatShortDate(iso: string | null): string {
   return `${m}/${d}`;
 }
 
+function statusLabel(status: string): string {
+  if (status === "scheduled") return "Due";
+  if (status === "pending") return "Pending";
+  if (status === "paid") return "Paid";
+  if (status === "skipped") return "Skipped";
+  return status;
+}
+
 export function BillRow({
   bill,
   monthId,
@@ -85,15 +81,7 @@ export function BillRow({
   highlightWindowKey?: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [notesDraft, setNotesDraft] = useState(() => bill.notes ?? "");
-  const [paidDraft, setPaidDraft] = useState(() =>
-    bill.amountPaid != null ? String(bill.amountPaid) : ""
-  );
-  const [assignDraft, setAssignDraft] = useState(() =>
-    bill.manualAssignment && bill.assignedGroupKey ? bill.assignedGroupKey : "auto"
-  );
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
 
   const effective = getEffectivePlannedAmount(bill.plannedAmount, bill.invoiceAmount);
   const paid = isBillPaid(bill.status, bill.amountPaid, effective);
@@ -139,42 +127,31 @@ export function BillRow({
     } else toast.error("Failed to delete");
   }
 
-  function runQuick(
-    action: () => Promise<{ success?: true; error?: string } | undefined>
-  ) {
-    startTransition(async () => {
-      const r = await action();
-      if (r?.error) toast.error(r.error);
-      else router.refresh();
-    });
-  }
+  const manualPaycheckLabel =
+    bill.manualAssignment && bill.assignedGroupKey
+      ? (windows.find((w) => w.key === bill.assignedGroupKey)?.label ?? bill.assignedGroupKey)
+      : null;
 
-  useEffect(() => {
-    setNotesDraft(bill.notes ?? "");
-    setPaidDraft(bill.amountPaid != null ? String(bill.amountPaid) : "");
-    setAssignDraft(
-      bill.manualAssignment && bill.assignedGroupKey ? bill.assignedGroupKey : "auto"
-    );
-  }, [
-    bill.id,
-    bill.notes,
-    bill.amountPaid,
-    bill.manualAssignment,
-    bill.assignedGroupKey,
-  ]);
+  const nameClass = paid ? "text-emerald-600 dark:text-emerald-400" : "";
 
   const nameCell = bill.paymentUrl ? (
     <a
       href={bill.paymentUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex min-w-0 items-center gap-1 truncate text-primary underline hover:no-underline font-medium"
+      className={cn(
+        "inline-flex min-w-0 items-center gap-1 truncate underline hover:no-underline font-medium",
+        paid ? nameClass : "text-primary",
+        paid && "hover:text-emerald-500 dark:hover:text-emerald-300"
+      )}
     >
       <span className="truncate">{bill.name}</span>
       <ExternalLink className="size-3 shrink-0 opacity-70" aria-hidden />
     </a>
   ) : (
-    <span className="block min-w-0 truncate font-medium">{bill.name}</span>
+    <span className={cn("block min-w-0 truncate font-medium", nameClass || undefined)}>
+      {bill.name}
+    </span>
   );
 
   const fullEdit = (
@@ -215,141 +192,47 @@ export function BillRow({
     </Sheet>
   );
 
-  const assignValue =
-    bill.manualAssignment && bill.assignedGroupKey ? bill.assignedGroupKey : "auto";
-
-  const trimmedNotesDraft = notesDraft.trim();
-  const parsedPaidDraft = paidDraft.trim() === "" ? null : Number(paidDraft.trim());
-  const paidDraftIsValid = paidDraft.trim() === "" || !Number.isNaN(parsedPaidDraft);
-  const paidChanged =
-    paidDraftIsValid && (bill.amountPaid ?? null) !== (parsedPaidDraft ?? null);
-  const notesChanged = (bill.notes?.trim() ?? "") !== trimmedNotesDraft;
-  const assignmentChanged = assignDraft !== assignValue;
-  const hasInlineChanges = paidChanged || notesChanged || assignmentChanged;
-
-  function resetInlineDrafts() {
-    setNotesDraft(bill.notes ?? "");
-    setPaidDraft(bill.amountPaid != null ? String(bill.amountPaid) : "");
-    setAssignDraft(assignValue);
-  }
-
-  function handleInlineSave() {
-    if (!paidDraftIsValid) {
-      toast.error("Enter a valid paid amount");
-      return;
-    }
-    if (!hasInlineChanges) return;
-    runQuick(() =>
-      quickUpdateBillInlineDetails(bill.id, monthId, monthKey, {
-        amountPaid: parsedPaidDraft ?? null,
-        notes: trimmedNotesDraft || null,
-        windowKey: assignDraft === "auto" ? null : assignDraft,
-      })
-    );
-  }
-
-  const inlineControls = (
-    <div className="flex flex-wrap items-center gap-2">
-      <Select
-        disabled={pending}
-        value={bill.status}
-        onValueChange={(v) => {
-          if (!v) return;
-          runQuick(() => quickUpdateBillStatus(bill.id, monthId, monthKey, v));
-        }}
-      >
-        <SelectTrigger className="h-7 w-[130px] text-[11px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="scheduled">Due</SelectItem>
-          <SelectItem value="pending">Pending</SelectItem>
-          <SelectItem value="paid">Paid</SelectItem>
-          <SelectItem value="skipped">Skipped</SelectItem>
-        </SelectContent>
-      </Select>
-      <div className="flex items-center gap-1">
-        <span className="text-[10px] text-muted-foreground whitespace-nowrap">Paid</span>
-        <Input
-          disabled={pending}
-          className="h-7 w-20 text-[11px] tabular-nums px-1.5"
-          inputMode="decimal"
-          value={paidDraft}
-          onChange={(e) => setPaidDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleInlineSave();
-            }
-          }}
-        />
+  const noteText = bill.notes?.trim() ?? "";
+  const readOnlyDetails = (
+    <div className="flex flex-col gap-1.5 min-w-0">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <span>
+          Status:{" "}
+          <span className="font-medium text-foreground">{statusLabel(bill.status)}</span>
+        </span>
+        <span>
+          Paid:{" "}
+          <span className="tabular-nums font-medium text-foreground">
+            {formatMoney(bill.amountPaid)}
+          </span>
+        </span>
+        {manualPaycheckLabel ? (
+          <span>
+            Paycheck:{" "}
+            <span className="font-medium text-foreground">{manualPaycheckLabel}</span>
+          </span>
+        ) : null}
       </div>
-      <Select
-        disabled={pending}
-        value={assignDraft}
-        onValueChange={(v) => {
-          if (!v) return;
-          setAssignDraft(v);
-        }}
-      >
-        <SelectTrigger className="h-7 min-w-[120px] max-w-[160px] text-[11px]">
-          <SelectValue placeholder="Paycheck" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="auto">Auto-assign</SelectItem>
-          {windows.map((w) => (
-            <SelectItem key={w.key} value={w.key}>
-              {w.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Input
-        disabled={pending}
-        placeholder="Note"
-        className="h-7 min-w-[6rem] flex-1 max-w-[200px] text-[11px]"
-        value={notesDraft}
-        onChange={(e) => setNotesDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            handleInlineSave();
-          }
-        }}
-      />
-      {hasInlineChanges && (
-        <>
-          <Button
-            type="button"
-            size="sm"
-            className="h-7 px-2 text-[11px] shrink-0"
-            disabled={pending || !paidDraftIsValid}
-            onClick={handleInlineSave}
-          >
-            Save
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-[11px] shrink-0"
-            disabled={pending}
-            onClick={resetInlineDrafts}
-          >
-            Cancel
-          </Button>
-        </>
-      )}
-      {fullEdit}
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="text-destructive h-7 px-2 text-[11px] shrink-0"
-        onClick={handleDelete}
-      >
-        Del
-      </Button>
+      {noteText ? (
+        <p
+          className="text-[11px] text-muted-foreground truncate"
+          title={noteText}
+        >
+          Note: <span className="text-foreground">{noteText}</span>
+        </p>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-2">
+        {fullEdit}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-destructive h-7 px-2 text-[11px] shrink-0"
+          onClick={handleDelete}
+        >
+          Del
+        </Button>
+      </div>
     </div>
   );
 
@@ -372,7 +255,7 @@ export function BillRow({
               Due: <span className="tabular-nums text-foreground">{formatMoney(effective)}</span>
             </span>
           </div>
-          {inlineControls}
+          {readOnlyDetails}
         </div>
       </li>
     );
@@ -391,7 +274,7 @@ export function BillRow({
         <td className="px-2 py-1.5 align-top">{fundingBadge}</td>
         <td className="px-2 py-1.5 align-top text-xs tabular-nums">{formatMoney(effective)}</td>
         <td className="px-2 py-1.5 align-top" colSpan={2}>
-          {inlineControls}
+          {readOnlyDetails}
         </td>
       </tr>
     );
@@ -420,7 +303,7 @@ export function BillRow({
         Amount due:{" "}
         <span className="tabular-nums font-medium text-foreground">{formatMoney(effective)}</span>
       </div>
-      {inlineControls}
+      {readOnlyDetails}
     </div>
   );
 }

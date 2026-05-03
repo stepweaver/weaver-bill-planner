@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { MonthAttentionStrip } from "./month-attention-strip";
 import { PaycheckRail } from "./paycheck-rail";
 import {
-  BillLedger,
   BILL_FILTER_UNASSIGNED,
   filterBillsByWindowKey,
   filterBillsByStatus,
@@ -75,7 +74,6 @@ export function MonthWorkspace({
   attention: MonthAttention;
 }) {
   const [windowFilter, setWindowFilter] = useState<string | null>(null);
-  const [groupByPaycheck, setGroupByPaycheck] = useState(false);
   const [statusFilter, setStatusFilter] = useState<BillStatusFilter>("all");
 
   const groupedBills = useMemo(() => {
@@ -111,15 +109,6 @@ export function MonthWorkspace({
             </SelectContent>
           </Select>
         </div>
-        <Button
-          type="button"
-          variant={groupByPaycheck ? "secondary" : "outline"}
-          size="sm"
-          className="h-8 text-xs"
-          onClick={() => setGroupByPaycheck((v) => !v)}
-        >
-          {groupByPaycheck ? "Due-date view" : "Group by paycheck"}
-        </Button>
         {attention.unassignedIds.length > 0 && (
           <Button
             type="button"
@@ -138,23 +127,12 @@ export function MonthWorkspace({
       </div>
       <div className="lg:grid lg:grid-cols-5 lg:gap-8 lg:items-start space-y-8 lg:space-y-0">
         <div className="lg:col-span-3 order-2 lg:order-1 space-y-4 min-w-0">
-          {groupByPaycheck ? (
-            <BillTableByWindow
-              windows={windows}
-              bills={groupedBills}
-              monthId={monthId}
-              monthKey={monthKey}
-            />
-          ) : (
-            <BillLedger
-              bills={billInstances}
-              monthId={monthId}
-              monthKey={monthKey}
-              windows={windows}
-              windowFilterKey={windowFilter}
-              statusFilter={statusFilter}
-            />
-          )}
+          <BillTableByWindow
+            windows={windows}
+            bills={groupedBills}
+            monthId={monthId}
+            monthKey={monthKey}
+          />
         </div>
         <aside className="lg:col-span-2 order-1 lg:order-2 space-y-5 min-w-0">
           <PaycheckRail
