@@ -110,8 +110,8 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Payment
         </p>
-        <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
-          <div className="space-y-2 sm:col-span-1">
+        <div className="space-y-3">
+          <div className="space-y-2">
             <Label>Status</Label>
             <Select
               value={form.watch("status")}
@@ -150,8 +150,8 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground leading-snug">
-          Pending = payment sent. Paid = cleared your bank. Set amounts next to the status you use
-          most.
+          Pending = payment sent. Paid = cleared your bank. Set amounts to match how you track each
+          bill.
         </p>
       </div>
 

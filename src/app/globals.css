@@ -237,6 +237,18 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary {
+    @apply cursor-pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    @apply cursor-not-allowed;
+  }
+  a[href]:not([aria-disabled="true"]) {
+    @apply cursor-pointer;
+  }
 }
 
 /* ─── Stepweaver-style utilities ─── */
