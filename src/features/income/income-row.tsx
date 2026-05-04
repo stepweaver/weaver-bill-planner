@@ -79,7 +79,7 @@ export function IncomeRow({
         <SheetTrigger className="inline-flex h-6 shrink-0 items-center justify-center rounded px-2 text-[11px] font-medium hover:bg-muted">
           Edit
         </SheetTrigger>
-        <SheetContent className="overflow-y-auto px-6">
+        <SheetContent className="flex h-full w-full max-w-none flex-col overflow-y-auto px-6 sm:max-w-none">
           <SheetHeader>
             <SheetTitle>Edit income</SheetTitle>
           </SheetHeader>

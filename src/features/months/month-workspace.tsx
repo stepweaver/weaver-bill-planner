@@ -95,13 +95,15 @@ export function MonthWorkspace({
           <CardTitle className="text-sm tracking-wide uppercase text-muted-foreground">Control deck</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2 pt-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-muted-foreground uppercase tracking-wider">Bill status</span>
+          <div className="flex w-full min-w-0 flex-1 flex-col gap-1.5 sm:min-w-[12rem] sm:flex-row sm:items-center">
+            <span className="shrink-0 text-[11px] text-muted-foreground uppercase tracking-wider">
+              Bill status
+            </span>
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter(v as BillStatusFilter)}
             >
-              <SelectTrigger className="h-8 w-[140px] text-xs bg-background/70">
+              <SelectTrigger className="h-8 w-full min-w-0 text-xs bg-background/70">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

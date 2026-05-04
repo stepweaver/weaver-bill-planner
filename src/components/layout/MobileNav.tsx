@@ -73,7 +73,10 @@ export function MobileNav() {
         >
           <HamburgerIcon open={open} />
         </SheetTrigger>
-        <SheetContent side="right" className="flex flex-col w-full max-w-[min(20rem,85vw)]">
+        <SheetContent
+          side="right"
+          className="flex h-full w-full max-w-none flex-col sm:max-w-none"
+        >
           <SheetHeader className="border-b border-border pb-4">
             <SheetTitle className="text-left font-medium text-foreground">
               <span className="text-primary">λ</span>ledger

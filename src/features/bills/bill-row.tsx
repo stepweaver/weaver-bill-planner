@@ -84,7 +84,9 @@ export function BillRow({
   const router = useRouter();
 
   const effective = getEffectivePlannedAmount(bill.plannedAmount, bill.invoiceAmount);
-  const paid = isBillPaid(bill.status, bill.amountPaid, effective);
+  /** In-flight payment (sent, not cleared) — keep separate from settled paid for visuals. */
+  const pendingVisual = bill.status === "pending";
+  const settledPaid = isBillPaid(bill.status, bill.amountPaid, effective) && !pendingVisual;
   const overdue = isBillOverdue(bill.dueDate, bill.status, bill.amountPaid, effective);
 
   const win = bill.displayWindowKey
@@ -108,11 +110,13 @@ export function BillRow({
     </span>
   );
 
-  const rowTint = paid
-    ? "bg-green-500/[0.06]"
-    : overdue
-      ? "bg-rose-500/[0.06]"
-      : "";
+  const rowTint = pendingVisual
+    ? "bg-amber-500/[0.09]"
+    : settledPaid
+      ? "bg-green-500/[0.06]"
+      : overdue
+        ? "bg-rose-500/[0.06]"
+        : "";
   const filteredHighlight =
     highlightWindowKey != null && bill.displayWindowKey === highlightWindowKey
       ? "ring-1 ring-primary/40"
@@ -132,7 +136,11 @@ export function BillRow({
       ? (windows.find((w) => w.key === bill.assignedGroupKey)?.label ?? bill.assignedGroupKey)
       : null;
 
-  const nameClass = paid ? "text-emerald-600 dark:text-emerald-400" : "";
+  const nameClass = pendingVisual
+    ? "text-amber-700 dark:text-amber-300"
+    : settledPaid
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "";
 
   const nameCell = bill.paymentUrl ? (
     <a
@@ -141,8 +149,9 @@ export function BillRow({
       rel="noopener noreferrer"
       className={cn(
         "inline-flex min-w-0 items-center gap-1 truncate underline hover:no-underline font-medium",
-        paid ? nameClass : "text-primary",
-        paid && "hover:text-emerald-500 dark:hover:text-emerald-300"
+        pendingVisual || settledPaid ? nameClass : "text-primary",
+        settledPaid && "hover:text-emerald-500 dark:hover:text-emerald-300",
+        pendingVisual && "hover:text-amber-600 dark:hover:text-amber-200"
       )}
     >
       <span className="truncate">{bill.name}</span>
@@ -159,7 +168,7 @@ export function BillRow({
       <SheetTrigger className="inline-flex h-7 shrink-0 items-center justify-center rounded-md border border-input bg-background px-2 text-[11px] font-medium hover:bg-muted">
         Edit
       </SheetTrigger>
-      <SheetContent className="overflow-y-auto px-6">
+      <SheetContent className="flex h-full w-full max-w-none flex-col overflow-y-auto px-6 sm:max-w-none">
         <SheetHeader>
           <SheetTitle>Edit bill</SheetTitle>
         </SheetHeader>
@@ -198,7 +207,16 @@ export function BillRow({
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         <span>
           Status:{" "}
-          <span className="font-medium text-foreground">{statusLabel(bill.status)}</span>
+          <span
+            className={cn(
+              "font-medium",
+              pendingVisual && "text-amber-700 dark:text-amber-300",
+              settledPaid && "text-emerald-700 dark:text-emerald-400",
+              !pendingVisual && !settledPaid && "text-foreground"
+            )}
+          >
+            {statusLabel(bill.status)}
+          </span>
         </span>
         <span>
           Paid:{" "}

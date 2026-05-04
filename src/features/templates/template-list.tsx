@@ -48,7 +48,7 @@ export function TemplateList({ templates }: { templates: Template[] }) {
         <SheetTrigger className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-transparent bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/80">
           Add template
         </SheetTrigger>
-        <SheetContent className="overflow-y-auto px-6">
+        <SheetContent className="flex h-full w-full max-w-none flex-col overflow-y-auto px-6 sm:max-w-none">
           <SheetHeader>
             <SheetTitle>Add bill template</SheetTitle>
           </SheetHeader>
@@ -120,7 +120,7 @@ function TemplateEditSheet({ template }: { template: Template }) {
       <SheetTrigger className="inline-flex h-6 shrink-0 items-center justify-center rounded px-2 text-[11px] font-medium hover:bg-muted">
         Edit
       </SheetTrigger>
-      <SheetContent className="overflow-y-auto px-6">
+      <SheetContent className="flex h-full w-full max-w-none flex-col overflow-y-auto px-6 sm:max-w-none">
         <SheetHeader>
           <SheetTitle>Edit template</SheetTitle>
         </SheetHeader>
