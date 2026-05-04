@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { MoreVertical } from "lucide-react";
 import { billInstanceSchema, type BillInstanceFormData } from "@/lib/validations/bill";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createBill, updateBill } from "./actions";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { createBill, updateBill, deleteBill } from "./actions";
 import { toast } from "sonner";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 import { cn } from "@/lib/utils";
@@ -28,6 +36,7 @@ type Props = {
 };
 
 export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Props) {
+  const [deleting, setDeleting] = useState(false);
   const isEdit = !!initial?.id;
   const form = useForm<BillInstanceFormData>({
     resolver: zodResolver(billInstanceSchema),
@@ -86,6 +95,25 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
     form.reset();
     onSuccess?.();
   }
+
+  async function handleDelete() {
+    if (!initial?.id) return;
+    if (!confirm("Delete this bill?")) return;
+    setDeleting(true);
+    try {
+      const r = await deleteBill(initial.id, monthKey);
+      if (r?.success) {
+        toast.success("Deleted");
+        onSuccess?.();
+      } else {
+        toast.error("Failed to delete");
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const busy = form.formState.isSubmitting || deleting;
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
@@ -193,9 +221,28 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" {...form.register("notes")} rows={2} />
       </div>
-      <Button type="submit" disabled={form.formState.isSubmitting}>
-        {isEdit ? "Update" : "Add"} bill
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" disabled={busy}>
+          {isEdit ? "Update" : "Add"} bill
+        </Button>
+        {isEdit && initial?.id ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              type="button"
+              disabled={busy}
+              className={cn(buttonVariants({ variant: "outline", size: "icon" }))}
+              aria-label="More bill actions"
+            >
+              <MoreVertical className="size-4" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem variant="destructive" disabled={deleting} onClick={handleDelete}>
+                Delete bill
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
     </form>
   );
 }

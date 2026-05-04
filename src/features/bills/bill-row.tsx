@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -10,9 +9,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { BillForm } from "./bill-form";
-import { deleteBill } from "./actions";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 import { getEffectivePlannedAmount, isBillPaid, isBillOverdue } from "@/lib/bill-utils";
 import { cn } from "@/lib/utils";
@@ -122,15 +119,6 @@ export function BillRow({
       ? "ring-1 ring-primary/40"
       : "";
 
-  async function handleDelete() {
-    if (!confirm("Delete this bill?")) return;
-    const r = await deleteBill(bill.id, monthKey);
-    if (r?.success) {
-      toast.success("Deleted");
-      router.refresh();
-    } else toast.error("Failed to delete");
-  }
-
   const manualPaycheckLabel =
     bill.manualAssignment && bill.assignedGroupKey
       ? (windows.find((w) => w.key === bill.assignedGroupKey)?.label ?? bill.assignedGroupKey)
@@ -239,18 +227,7 @@ export function BillRow({
           Note: <span className="text-foreground">{noteText}</span>
         </p>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        {fullEdit}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-destructive h-7 px-2 text-[11px] shrink-0"
-          onClick={handleDelete}
-        >
-          Del
-        </Button>
-      </div>
+      {fullEdit}
     </div>
   );
 
