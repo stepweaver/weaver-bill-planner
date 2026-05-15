@@ -225,9 +225,9 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
       </div>
         </div>
       </div>
-      <div className="sticky bottom-0 z-10 shrink-0 border-t border-border bg-background pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="sheet-footer-safe z-10 -mx-6 shrink-0 border-t border-border bg-background px-6 pt-4 shadow-[0_-12px_24px_-12px_rgba(0,0,0,0.45)]">
         <div className="flex items-center gap-2">
-          <Button type="submit" disabled={busy} className="min-h-10 flex-1 sm:flex-none">
+          <Button type="submit" disabled={busy} className="min-h-11 flex-1 sm:flex-none">
             {isEdit ? "Update" : "Add"} bill
           </Button>
           {isEdit && initial?.id ? (
@@ -235,7 +235,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
               <DropdownMenuTrigger
                 type="button"
                 disabled={busy}
-                className={cn(buttonVariants({ variant: "outline", size: "icon" }), "size-10 shrink-0")}
+                className={cn(buttonVariants({ variant: "outline", size: "icon" }), "size-11 shrink-0")}
                 aria-label="More bill actions"
               >
                 <MoreVertical className="size-4" aria-hidden />
