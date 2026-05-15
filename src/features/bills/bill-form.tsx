@@ -116,7 +116,9 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
   const busy = form.formState.isSubmitting || deleting;
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+    <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="space-y-3 py-2">
       <div className="space-y-2">
         <Label htmlFor="name">Name</Label>
         <Input id="name" {...form.register("name")} placeholder="Rent" />
@@ -221,27 +223,31 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" {...form.register("notes")} rows={2} />
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" disabled={busy}>
-          {isEdit ? "Update" : "Add"} bill
-        </Button>
-        {isEdit && initial?.id ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              type="button"
-              disabled={busy}
-              className={cn(buttonVariants({ variant: "outline", size: "icon" }))}
-              aria-label="More bill actions"
-            >
-              <MoreVertical className="size-4" aria-hidden />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem variant="destructive" disabled={deleting} onClick={handleDelete}>
-                Delete bill
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
+        </div>
+      </div>
+      <div className="sticky bottom-0 z-10 shrink-0 border-t border-border bg-background pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="flex items-center gap-2">
+          <Button type="submit" disabled={busy} className="min-h-10 flex-1 sm:flex-none">
+            {isEdit ? "Update" : "Add"} bill
+          </Button>
+          {isEdit && initial?.id ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                type="button"
+                disabled={busy}
+                className={cn(buttonVariants({ variant: "outline", size: "icon" }), "size-10 shrink-0")}
+                aria-label="More bill actions"
+              >
+                <MoreVertical className="size-4" aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem variant="destructive" disabled={deleting} onClick={handleDelete}>
+                  Delete bill
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </div>
       </div>
     </form>
   );
