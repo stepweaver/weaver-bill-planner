@@ -156,11 +156,10 @@ export function BillRow({
       <SheetTrigger className="inline-flex h-7 shrink-0 items-center justify-center rounded-md border border-input bg-background px-2 text-[11px] font-medium hover:bg-muted">
         Edit
       </SheetTrigger>
-      <SheetContent className="top-0 right-0 bottom-auto left-0 flex h-svh max-h-svh w-full max-w-none flex-col gap-0 overflow-hidden p-0 sm:inset-y-0 sm:bottom-0 sm:left-auto sm:h-full sm:max-h-none">
+      <SheetContent className="flex h-dvh flex-col gap-0 overflow-hidden p-0">
         <SheetHeader className="shrink-0 border-b border-border px-6 py-4">
           <SheetTitle>Edit bill</SheetTitle>
         </SheetHeader>
-        <div className="flex min-h-0 flex-1 flex-col px-6">
         <BillForm
           monthId={monthId}
           monthKey={monthKey}
@@ -186,7 +185,6 @@ export function BillRow({
             router.refresh();
           }}
         />
-        </div>
       </SheetContent>
     </Sheet>
   );
