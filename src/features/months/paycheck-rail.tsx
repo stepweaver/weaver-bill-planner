@@ -37,7 +37,7 @@ export function PaycheckRail({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-medium">Paychecks</h2>
+        <h3 className="text-sm font-medium">Paycheck windows</h3>
         {hasActiveFilter && (
           <Button
             type="button"

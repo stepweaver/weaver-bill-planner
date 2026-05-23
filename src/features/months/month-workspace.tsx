@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { MonthAttentionStrip } from "./month-attention-strip";
-import { PaycheckRail } from "./paycheck-rail";
+import { IncomePaycheckPanel } from "./income-paycheck-panel";
 import {
   BILL_FILTER_UNASSIGNED,
   BILL_STATUS_FILTER_ITEMS,
@@ -11,8 +11,6 @@ import {
   type BillStatusFilter,
 } from "@/features/bills/bill-ledger";
 import { BillTableByWindow } from "@/features/bills/bill-table-by-window";
-import { IncomeList } from "@/features/income/income-list";
-import { AddIncomeButton } from "@/features/income/add-income-button";
 import { MonthHud } from "./month-hud";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -159,15 +157,18 @@ export function MonthWorkspace({
           />
         </section>
 
-        <aside className="space-y-5 min-w-0">
+        <aside className="min-w-0">
           <Card className="hud-panel border-border/70">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Paycheck windows</CardTitle>
+              <CardTitle className="text-base">Income & paychecks</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <PaycheckRail
+              <IncomePaycheckPanel
+                monthId={monthId}
+                monthKey={monthKey}
+                incomeEvents={incomeEvents}
                 windows={windows}
-                summaries={paycheckSummaries}
+                paycheckSummaries={paycheckSummaries}
                 selectedWindowKey={paycheckSelectKey}
                 onSelectWindow={(key) => setWindowFilter(key)}
                 hasActiveFilter={windowFilter != null || statusFilter !== "all"}
@@ -176,18 +177,6 @@ export function MonthWorkspace({
                   setStatusFilter("all");
                 }}
               />
-            </CardContent>
-          </Card>
-
-          <Card className="hud-panel border-border/70">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-base">Income timeline</CardTitle>
-                <AddIncomeButton monthId={monthId} monthKey={monthKey} />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <IncomeList events={incomeEvents} monthKey={monthKey} />
             </CardContent>
           </Card>
         </aside>
