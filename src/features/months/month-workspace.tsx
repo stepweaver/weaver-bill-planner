@@ -5,6 +5,7 @@ import { MonthAttentionStrip } from "./month-attention-strip";
 import { PaycheckRail } from "./paycheck-rail";
 import {
   BILL_FILTER_UNASSIGNED,
+  BILL_STATUS_FILTER_ITEMS,
   filterBillsByWindowKey,
   filterBillsByStatus,
   type BillStatusFilter,
@@ -102,16 +103,17 @@ export function MonthWorkspace({
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter(v as BillStatusFilter)}
+              items={BILL_STATUS_FILTER_ITEMS}
             >
               <SelectTrigger className="h-8 w-full min-w-0 text-xs bg-background/70">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All bills</SelectItem>
-                <SelectItem value="scheduled">Due</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="skipped">Skipped</SelectItem>
+                {BILL_STATUS_FILTER_ITEMS.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

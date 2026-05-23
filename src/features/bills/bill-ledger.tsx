@@ -4,6 +4,14 @@ export const BILL_FILTER_UNASSIGNED = "__unassigned__";
 
 export type BillStatusFilter = "all" | "scheduled" | "pending" | "paid" | "skipped";
 
+export const BILL_STATUS_FILTER_ITEMS: { value: BillStatusFilter; label: string }[] = [
+  { value: "all", label: "All bills" },
+  { value: "scheduled", label: "Due" },
+  { value: "pending", label: "Pending" },
+  { value: "paid", label: "Paid" },
+  { value: "skipped", label: "Skipped" },
+];
+
 type BillInstanceBase = {
   status: string;
   plannedAmount: number | null;
