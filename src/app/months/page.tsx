@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getMonthsList } from "@/features/months/actions";
+import { MonthManageActions } from "@/features/months/month-manage-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -85,11 +86,18 @@ export default async function MonthsPage() {
                       <span className="text-muted-foreground"> (after paid)</span>
                     </p>
                   </div>
-                  <Link href={`/months/${month.monthKey}`}>
-                    <Button variant="outline" size="sm" className="w-full">
-                      Open
-                    </Button>
-                  </Link>
+                  <div className="flex gap-2">
+                    <Link href={`/months/${month.monthKey}`} className="min-w-0 flex-1">
+                      <Button variant="outline" size="sm" className="w-full">
+                        Open
+                      </Button>
+                    </Link>
+                    <MonthManageActions
+                      monthKey={month.monthKey}
+                      label={month.label}
+                      variant="card"
+                    />
+                  </div>
                 </CardContent>
               </Card>
             );

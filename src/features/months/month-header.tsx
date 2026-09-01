@@ -3,6 +3,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { addMonths, subMonths, format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { getMonthByKey } from "./actions";
+import { MonthManageActions } from "./month-manage-actions";
 
 function prevNextMonth(monthKey: string, delta: number): string {
   const [y, m] = monthKey.split("-").map(Number);
@@ -65,6 +66,7 @@ export async function MonthHeader({
             </Button>
           </Link>
           <CloseMonthButton monthKey={monthKey} />
+          <MonthManageActions monthKey={monthKey} label={label} variant="header" />
         </nav>
       </div>
     </header>

@@ -1,4 +1,5 @@
-import { endOfMonth, setMonth, setYear, parseISO } from "date-fns";
+import { endOfMonth, format } from "date-fns";
+import { labelForMonthKey, shiftIsoDateToMonth } from "@/lib/month-dates";
 
 export interface DraftBillInstance {
   templateId: number | null;
@@ -46,51 +47,28 @@ export function propagateMonth(
   const targetMonthStart = new Date(year, month - 1, 1);
   const targetMonthEnd = endOfMonth(targetMonthStart);
 
+  const monthEndIso = format(targetMonthEnd, "yyyy-MM-dd");
+
   const billInstances: DraftBillInstance[] = sourceBills
     .filter((b) => b.isRecurring !== false)
-    .map((b) => {
-      let dueDate: Date;
-      if (b.dueDate) {
-        const sourceDue = parseISO(b.dueDate);
-        const day = sourceDue.getDate();
-        dueDate = setYear(setMonth(new Date(year, month - 1, 1), month - 1), year);
-        dueDate.setDate(Math.min(day, targetMonthEnd.getDate()));
-      } else {
-        dueDate = targetMonthEnd;
-      }
-      return {
-        templateId: b.templateId,
-        name: b.name,
-        dueDate: dueDate.toISOString().slice(0, 10),
-        plannedAmount: b.plannedAmount,
-        paymentUrl: b.paymentUrl,
-        isRecurring: true,
-      };
-    });
+    .map((b) => ({
+      templateId: b.templateId,
+      name: b.name,
+      dueDate: b.dueDate
+        ? shiftIsoDateToMonth(b.dueDate, targetMonthKey)
+        : monthEndIso,
+      plannedAmount: b.plannedAmount,
+      paymentUrl: b.paymentUrl,
+      isRecurring: true,
+    }));
 
-  const incomeEvents: DraftIncomeEvent[] = sourceIncome.map((e) => {
-    const sourceDate = parseISO(e.expectedDate);
-    const targetDate = setYear(
-      setMonth(
-        new Date(year, month - 1, sourceDate.getDate()),
-        month - 1
-      ),
-      year
-    );
-    const clamped =
-      targetDate > targetMonthEnd ? targetMonthEnd : targetDate;
-    return {
-      name: e.name,
-      expectedDate: clamped.toISOString().slice(0, 10),
-      expectedAmount: e.expectedAmount,
-    };
-  });
+  const incomeEvents: DraftIncomeEvent[] = sourceIncome.map((e) => ({
+    name: e.name,
+    expectedDate: shiftIsoDateToMonth(e.expectedDate, targetMonthKey),
+    expectedAmount: e.expectedAmount,
+  }));
 
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-  ];
-  const label = `${monthNames[month - 1]} ${year}`;
+  const label = labelForMonthKey(targetMonthKey);
 
   return {
     targetMonthKey,

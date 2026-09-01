@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { months, ledgers, incomeEvents, billInstances, billTemplates } from "@/db/schema";
 import { eq, desc, asc, and, inArray } from "drizzle-orm";
-import { endOfMonth } from "date-fns";
+import { endOfMonth, format } from "date-fns";
 import { revalidatePath } from "next/cache";
 import { buildPaycheckWindows } from "@/lib/paycheck-windows";
 import { assignBillToWindow } from "@/lib/paycheck-windows";
@@ -17,6 +17,8 @@ import type { IncomeEventForWindow } from "@/lib/paycheck-windows";
 import { propagateMonth } from "@/lib/propagate-month";
 import { recomputeAutoAssignmentsForMonth } from "@/lib/recompute-auto-assignments";
 import { getSessionForServer } from "@/lib/auth-server";
+import { labelForMonthKey, shiftIsoDateToMonth } from "@/lib/month-dates";
+import { monthKeySchema } from "@/lib/validations/month";
 
 function hasDb() {
   return !!process.env.DATABASE_URL;
@@ -209,6 +211,94 @@ export async function closeMonthFormAction(formData: FormData) {
   const monthKey = formData.get("monthKey");
   if (typeof monthKey !== "string") return;
   await closeMonth(monthKey);
+}
+
+function dateValueToIso(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) return format(value, "yyyy-MM-dd");
+  const s = String(value).trim();
+  return s ? s.slice(0, 10) : null;
+}
+
+/** Move an existing month to a different YYYY-MM, shifting bill and income dates. */
+export async function retargetMonth(
+  monthKey: string,
+  newMonthKey: string
+): Promise<{ error: string } | { success: true; monthKey: string }> {
+  if (!hasDb()) return { error: "Database not configured" };
+  const parsed = monthKeySchema.safeParse(newMonthKey.trim());
+  if (!parsed.success) return { error: "Target month must be YYYY-MM" };
+  const targetKey = parsed.data;
+  if (targetKey === monthKey) return { error: "Choose a different month" };
+
+  const month = await getMonthByKey(monthKey);
+  if (!month) return { error: "Month not found" };
+
+  const [collision] = await db
+    .select({ id: months.id })
+    .from(months)
+    .where(and(eq(months.ledgerId, month.ledgerId), eq(months.monthKey, targetKey)))
+    .limit(1);
+  if (collision) return { error: `${labelForMonthKey(targetKey)} already exists` };
+
+  await db
+    .update(months)
+    .set({
+      monthKey: targetKey,
+      label: labelForMonthKey(targetKey),
+      updatedAt: new Date(),
+    })
+    .where(eq(months.id, month.id));
+
+  const [bills, income] = await Promise.all([
+    db.select({ id: billInstances.id, dueDate: billInstances.dueDate }).from(billInstances).where(eq(billInstances.monthId, month.id)),
+    db
+      .select({ id: incomeEvents.id, expectedDate: incomeEvents.expectedDate })
+      .from(incomeEvents)
+      .where(eq(incomeEvents.monthId, month.id)),
+  ]);
+
+  for (const bill of bills) {
+    const iso = dateValueToIso(bill.dueDate);
+    if (!iso) continue;
+    await db
+      .update(billInstances)
+      .set({ dueDate: shiftIsoDateToMonth(iso, targetKey), updatedAt: new Date() })
+      .where(eq(billInstances.id, bill.id));
+  }
+  for (const event of income) {
+    const iso = dateValueToIso(event.expectedDate);
+    if (!iso) continue;
+    await db
+      .update(incomeEvents)
+      .set({ expectedDate: shiftIsoDateToMonth(iso, targetKey), updatedAt: new Date() })
+      .where(eq(incomeEvents.id, event.id));
+  }
+
+  await recomputeAutoAssignmentsForMonth(month.id, targetKey);
+  revalidatePath("/months");
+  revalidatePath("/");
+  revalidatePath(`/months/${monthKey}`);
+  revalidatePath(`/months/${targetKey}`);
+  return { success: true as const, monthKey: targetKey };
+}
+
+/** Permanently delete a month and all of its bills and income. */
+export async function deleteMonth(
+  monthKey: string
+): Promise<{ error: string } | { success: true }> {
+  if (!hasDb()) return { error: "Database not configured" };
+  const month = await getMonthByKey(monthKey);
+  if (!month) return { error: "Month not found" };
+
+  await db.delete(billInstances).where(eq(billInstances.monthId, month.id));
+  await db.delete(incomeEvents).where(eq(incomeEvents.monthId, month.id));
+  await db.delete(months).where(eq(months.id, month.id));
+
+  revalidatePath("/months");
+  revalidatePath("/");
+  revalidatePath(`/months/${monthKey}`);
+  return { success: true as const };
 }
 
 /** Build a draft month from active templates (for first month or "from templates" flow). */
