@@ -20,7 +20,7 @@ import type { PaycheckWindow } from "@/lib/paycheck-windows";
 import { getEffectivePlannedAmount, isBillPaid, isBillOverdue } from "@/lib/bill-utils";
 import { cn } from "@/lib/utils";
 import { paycheckBadgeClass, paycheckRowBorderClass } from "@/lib/paycheck-window-styles";
-import { ExternalLink } from "lucide-react";
+import { Calendar, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 type Bill = {
@@ -49,15 +49,6 @@ function formatMoney(n: number | null) {
     currency: "USD",
     minimumFractionDigits: 2,
   }).format(n);
-}
-
-function formatShortDate(iso: string | null): string {
-  if (!iso) return "—";
-  const parts = iso.split("-");
-  if (parts.length < 3) return iso;
-  const m = parts[1]!.padStart(2, "0");
-  const d = parts[2]!.padStart(2, "0");
-  return `${m}/${d}`;
 }
 
 function statusLabel(status: string): string {
@@ -123,30 +114,40 @@ function DueDateControl({
   }
 
   return (
-    <label
-      className={cn(
-        "relative flex w-full items-center rounded-sm focus-within:ring-2 focus-within:ring-ring",
-        touch ? "min-h-11 min-w-11" : "min-h-8 min-w-10"
-      )}
-    >
-      <span
-        aria-hidden
-        className={cn(
-          "pointer-events-none tabular-nums text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/70 underline-offset-2",
-          saving && "opacity-50"
-        )}
-      >
-        {formatShortDate(value || null)}
-      </span>
+    <div className={cn("relative inline-flex max-w-full items-center", touch && "min-h-11")}>
       <input
         type="date"
         value={value}
         aria-label={dueDate ? `Due date for ${billName}` : `Set due date for ${billName}`}
+        aria-busy={saving}
         disabled={saving}
         onChange={onChange}
-        className="absolute inset-0 h-full w-full cursor-pointer text-base opacity-0 disabled:cursor-wait"
+        className={cn(
+          "relative cursor-pointer rounded-md border border-input bg-transparent text-muted-foreground tabular-nums scheme-dark",
+          "touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "disabled:cursor-wait disabled:opacity-50",
+          "[&::-webkit-calendar-picker-indicator]:cursor-pointer",
+          // Chromium only opens the popup from the calendar glyph, and the date
+          // text sits above that glyph. Let clicks fall through to the glyph.
+          "pointer-fine:[&::-webkit-datetime-edit]:pointer-events-none",
+          "pointer-fine:[&::-webkit-datetime-edit-fields-wrapper]:pointer-events-none",
+          "pointer-fine:pr-6",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:absolute",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:inset-0",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:m-0",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:h-full",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:w-full",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:cursor-pointer",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:bg-transparent",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:opacity-0",
+          touch ? "h-11 min-w-11 px-2 text-base" : "h-7 px-1.5 text-[11px]"
+        )}
       />
-    </label>
+      <Calendar
+        aria-hidden
+        className="pointer-events-none absolute right-1.5 hidden size-3.5 text-muted-foreground pointer-fine:block"
+      />
+    </div>
   );
 }
 
@@ -419,7 +420,7 @@ export function BillRow({
         filteredHighlight
       )}
     >
-      <div className="grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-2 py-2">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-2 py-2">
         {dueDateControl}
         <div className="min-w-0">{nameCell}</div>
         <span className="text-right text-xs font-medium tabular-nums">

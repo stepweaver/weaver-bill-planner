@@ -102,7 +102,7 @@ export function BillTableByWindow({
               <Table className="table-fixed text-xs">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-16 text-xs text-muted-foreground">Due</TableHead>
+                    <TableHead className="w-36 text-xs text-muted-foreground">Due</TableHead>
                     <TableHead className="text-xs text-muted-foreground">Bill</TableHead>
                     <TableHead className="w-28 text-xs text-muted-foreground">Amount</TableHead>
                     <TableHead className="w-40 text-xs text-muted-foreground">Paycheck</TableHead>
