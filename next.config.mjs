@@ -35,6 +35,13 @@ const nextConfig = {
   // it as outputFileTracingRoot / turbopack.root and resolve CSS imports like
   // `tailwindcss` from there—where node_modules does not exist.
   outputFileTracingRoot: projectRoot,
+  // Turbopack production builds have been emitting HTML that points at a CSS
+  // chunk the server never has. The browser then refuses text/plain 404s and
+  // the page renders unstyled. Inline the stylesheet so a missing chunk cannot
+  // strip the layout.
+  experimental: {
+    inlineCss: true,
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

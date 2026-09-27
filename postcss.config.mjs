@@ -25,24 +25,14 @@ const projectRoot =
   findProjectRoot(process.cwd()) ??
   findProjectRoot(path.dirname(fileURLToPath(import.meta.url)));
 
-const stylesheet = path.join(projectRoot, "src", "app", "globals.css");
-
 /**
- * Turbopack sometimes runs PostCSS with `from` unset or pointed at a
- * generated file. Tailwind then resolves `@import "tailwindcss"` from the
- * parent of this repo (no node_modules) or scans a directory with no
- * components, so utilities are missing and the page renders unstyled.
+ * `base` keeps Tailwind scanning this app. Without it, a parent lockfile makes
+ * Next treat the folder above this repo as the project root, `@import "tailwindcss"`
+ * fails to resolve, and the page ships with no utilities.
+ * Webpack only accepts PostCSS plugins as package names, so this stays a string tuple.
  */
-const pinStylesheetFrom = () => ({
-  postcssPlugin: "pin-stylesheet-from",
-  Once(_root, { result }) {
-    result.opts.from = stylesheet;
-  },
-});
-pinStylesheetFrom.postcss = true;
-
 const config = {
-  plugins: [pinStylesheetFrom(), ["@tailwindcss/postcss", { base: projectRoot }]],
+  plugins: [["@tailwindcss/postcss", { base: projectRoot }]],
 };
 
 export default config;
