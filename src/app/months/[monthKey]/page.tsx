@@ -20,9 +20,9 @@ export default async function MonthDetailPage({
     incomeEvents,
     billInstances,
     windows,
-    metrics,
     paycheckSummaries,
     attention,
+    planningSnapshot,
   } = data;
 
   return (
@@ -34,9 +34,9 @@ export default async function MonthDetailPage({
         incomeEvents={incomeEvents}
         billInstances={billInstances}
         windows={windows}
-        metrics={metrics}
         paycheckSummaries={paycheckSummaries}
         attention={attention}
+        planningSnapshot={planningSnapshot}
       />
     </AppShell>
   );

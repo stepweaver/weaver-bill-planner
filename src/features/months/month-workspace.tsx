@@ -1,13 +1,13 @@
 "use client";
 
 import { MonthAttentionStrip } from "./month-attention-strip";
+import { PlanningSnapshot } from "./planning-snapshot";
 import { BillTableByWindow } from "@/features/bills/bill-table-by-window";
 import { AddIncomeButton } from "@/features/income/add-income-button";
 import { IncomeList } from "@/features/income/income-list";
-import { MonthHud } from "./month-hud";
+import type { PlanningSnapshotPayload } from "@/features/months/actions";
 import type { MonthAttention, PaycheckWindowSummary } from "@/lib/month-funding";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
-import type { MonthMetrics } from "@/lib/month-metrics";
 
 type IncomeEvent = {
   id: number;
@@ -44,27 +44,34 @@ export function MonthWorkspace({
   incomeEvents,
   billInstances,
   windows,
-  metrics,
   attention,
+  planningSnapshot,
 }: {
   monthKey: string;
   monthId: number;
   incomeEvents: IncomeEvent[];
   billInstances: BillInstance[];
   windows: PaycheckWindow[];
-  metrics: MonthMetrics;
   /** Kept so the month page can keep passing summaries. The paycheck rail is not mounted. */
   paycheckSummaries: PaycheckWindowSummary[];
   attention: MonthAttention;
+  planningSnapshot: PlanningSnapshotPayload;
 }) {
   return (
     <div className="mt-4 space-y-5">
+      <PlanningSnapshot
+        monthKey={monthKey}
+        operational={planningSnapshot.operational}
+        liveMonth={planningSnapshot.liveMonth}
+        availableBalance={planningSnapshot.availableBalance}
+        availableBalanceUpdatedAt={planningSnapshot.availableBalanceUpdatedAt}
+        planning={planningSnapshot.planning}
+      />
       <MonthAttentionStrip attention={attention} />
-      <MonthHud metrics={metrics} />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-medium">Income</h2>
+          <h2 className="text-lg font-medium">Income</h2>
           <AddIncomeButton monthId={monthId} monthKey={monthKey} />
         </div>
         <IncomeList events={incomeEvents} monthKey={monthKey} />

@@ -22,11 +22,11 @@ export function IncomeList({
   return (
     <div className="min-w-0 rounded border">
       {events.length === 0 ? (
-        <p className="px-2 py-3 text-center text-muted-foreground text-xs">
+        <p className="px-3 py-4 text-center text-sm text-muted-foreground">
           No income. Add one to define paycheck windows.
         </p>
       ) : (
-        <ul className="divide-y divide-border text-xs">
+        <ul className="divide-y divide-border text-sm">
           {events.map((ev) => (
             <IncomeRow key={ev.id} event={ev} monthKey={monthKey} as="list" />
           ))}

@@ -18,6 +18,13 @@ import { propagateMonth } from "@/lib/propagate-month";
 import { recomputeAutoAssignmentsForMonth } from "@/lib/recompute-auto-assignments";
 import { getSessionForServer } from "@/lib/auth-server";
 import { labelForMonthKey, shiftIsoDateToMonth } from "@/lib/month-dates";
+import { numericToNumber, parseAvailableBalanceInput } from "@/lib/money";
+import {
+  buildPaycheckPlanningSnapshot,
+  calendarMonthKey,
+  isCurrentCalendarMonth,
+  type MonthPlanningView,
+} from "@/lib/paycheck-snapshot";
 import { monthKeySchema } from "@/lib/validations/month";
 
 function hasDb() {
@@ -183,6 +190,55 @@ export async function getMonthWithData(monthKey: string) {
     billsForFunding,
     paycheckSummaries
   );
+
+  const today = new Date();
+  const operational = isCurrentCalendarMonth(monthKey, today);
+  const [ledgerRow] = await db
+    .select({
+      availableBalance: ledgers.availableBalance,
+      availableBalanceUpdatedAt: ledgers.availableBalanceUpdatedAt,
+    })
+    .from(ledgers)
+    .where(eq(ledgers.id, month.ledgerId))
+    .limit(1);
+  const storedBalance = numericToNumber(ledgerRow?.availableBalance ?? null);
+  const planning = buildPaycheckPlanningSnapshot({
+    income: income.map((event) => ({
+      id: event.id,
+      name: event.name,
+      expectedDate: event.expectedDate,
+      expectedAmount: event.expectedAmount,
+      actualAmount: event.actualAmount,
+      status: event.status,
+    })),
+    bills: bills.map((bill) => ({
+      id: bill.id,
+      name: bill.name,
+      dueDate: bill.dueDate,
+      plannedAmount: bill.plannedAmount,
+      invoiceAmount: bill.invoiceAmount,
+      amountPaid: bill.amountPaid,
+      status: bill.status,
+    })),
+    // Historical and future months must not treat today's bank number as theirs.
+    availableBalance: operational ? storedBalance : null,
+    today,
+  });
+
+  let liveMonth: { href: string; label: string } | null = null;
+  if (!operational) {
+    const liveKey = calendarMonthKey(today);
+    const live = await getMonthByKey(liveKey);
+    if (live) liveMonth = { href: `/months/${liveKey}`, label: live.label };
+  }
+
+  const updatedAt = ledgerRow?.availableBalanceUpdatedAt ?? null;
+  const updatedAtIso = (() => {
+    if (!operational || updatedAt == null) return null;
+    const date = updatedAt instanceof Date ? updatedAt : new Date(updatedAt);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  })();
+
   return {
     month,
     incomeEvents: income,
@@ -191,7 +247,57 @@ export async function getMonthWithData(monthKey: string) {
     metrics,
     paycheckSummaries,
     attention,
+    planningSnapshot: {
+      operational,
+      liveMonth,
+      availableBalance: operational ? storedBalance : null,
+      availableBalanceUpdatedAt: updatedAtIso,
+      planning,
+    } satisfies PlanningSnapshotPayload,
   };
+}
+
+export interface PlanningSnapshotPayload {
+  /** True only when this page is the calendar's current month. */
+  operational: boolean;
+  liveMonth: { href: string; label: string } | null;
+  /** Null when this is not the current month, or the user has not entered a balance. */
+  availableBalance: number | null;
+  availableBalanceUpdatedAt: string | null;
+  planning: MonthPlanningView;
+}
+
+/**
+ * Save the number the bank shows right now.
+ * Pending payments are subtracted later, when the snapshot computes what is still available.
+ */
+export async function updateAvailableBankBalance(
+  monthKey: string,
+  rawAmount: string
+): Promise<{ error: string } | { success: true }> {
+  if (!hasDb()) return { error: "Database not configured" };
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: "You need to sign in again." };
+  const month = await getMonthByKey(monthKey);
+  if (!month || month.ledgerId !== ledgerId) return { error: "Month not found" };
+  if (!isCurrentCalendarMonth(monthKey)) {
+    return { error: "Enter the available balance on the current month." };
+  }
+  const amount = parseAvailableBalanceInput(rawAmount);
+  if (amount == null) {
+    return { error: "Enter a dollar amount, like 2850 or -12.50." };
+  }
+  await db
+    .update(ledgers)
+    .set({
+      availableBalance: amount,
+      availableBalanceUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(ledgers.id, ledgerId));
+  revalidatePath(`/months/${monthKey}`);
+  revalidatePath("/months");
+  return { success: true };
 }
 
 export async function closeMonth(monthKey: string) {

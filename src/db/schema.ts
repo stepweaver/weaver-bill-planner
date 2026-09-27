@@ -6,6 +6,7 @@ import {
   integer,
   boolean,
   real,
+  numeric,
   date,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -16,6 +17,16 @@ export const ledgers = pgTable("ledgers", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   isDefault: boolean("is_default").default(false),
+  /**
+   * Current available bank balance: the amount the bank says can be spent right now.
+   * A ledger-level snapshot, not a month balance and not historical accounting.
+   * Null until the user enters one. Zero is a real entered balance.
+   * numeric(12,2) stores exact cents. Other money columns in this schema are `real`
+   * (float); this snapshot does not copy that.
+   */
+  availableBalance: numeric("available_balance", { precision: 12, scale: 2 }),
+  /** When `availableBalance` was last saved. */
+  availableBalanceUpdatedAt: timestamp("available_balance_updated_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

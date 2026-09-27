@@ -73,17 +73,17 @@ export function BillTableByWindow({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-medium">Bills</h2>
+        <h2 className="text-lg font-medium">Bills</h2>
         <AddBillButton monthId={monthId} monthKey={monthKey} windows={windows} />
       </div>
       {sorted.length === 0 ? (
-        <p className="rounded border border-dashed px-2 py-3 text-center text-xs text-muted-foreground">
+        <p className="rounded border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
           No bills.
         </p>
       ) : (
         <>
           {showList ? (
-            <ul className="rounded border text-xs md:hidden">
+            <ul className="rounded border text-sm md:hidden">
               {sorted.map((b) => (
                 <BillRow
                   key={b.id}
@@ -99,15 +99,15 @@ export function BillTableByWindow({
           ) : null}
           {showTable ? (
             <div className="hidden overflow-hidden rounded border md:block">
-              <Table className="table-fixed text-xs">
+              <Table className="table-fixed text-sm">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-36 text-xs text-muted-foreground">Due</TableHead>
-                    <TableHead className="text-xs text-muted-foreground">Bill</TableHead>
-                    <TableHead className="w-28 text-xs text-muted-foreground">Amount</TableHead>
-                    <TableHead className="w-40 text-xs text-muted-foreground">Paycheck</TableHead>
-                    <TableHead className="w-40 text-xs text-muted-foreground">Status</TableHead>
-                    <TableHead className="w-16 text-xs text-muted-foreground">Edit</TableHead>
+                    <TableHead className="w-24 text-sm text-muted-foreground">Due</TableHead>
+                    <TableHead className="text-sm text-muted-foreground">Bill</TableHead>
+                    <TableHead className="w-28 text-sm text-muted-foreground">Amount</TableHead>
+                    <TableHead className="w-40 text-sm text-muted-foreground">Paycheck</TableHead>
+                    <TableHead className="w-44 text-sm text-muted-foreground">Status</TableHead>
+                    <TableHead className="w-20 text-sm text-muted-foreground">Edit</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

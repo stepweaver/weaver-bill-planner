@@ -26,7 +26,7 @@ export function AddBillButton({
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger className="inline-flex h-7 shrink-0 items-center justify-center rounded-md border border-transparent bg-primary px-2.5 text-[0.8rem] font-medium text-primary-foreground hover:bg-primary/80">
+      <SheetTrigger className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-transparent bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/80">
         Add bill
       </SheetTrigger>
       <SheetContent layout="drawer" className={billEditorSheetClassName}>

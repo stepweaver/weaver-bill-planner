@@ -64,20 +64,29 @@ function dateInputValue(iso: string | null): string {
   return iso.slice(0, 10);
 }
 
+/** Month view already implies the year, so in-month dates stay MM/DD. */
+function formatCompactDueDate(iso: string, monthKey: string): string {
+  const [year, month, day] = iso.slice(0, 10).split("-");
+  if (!year || !month || !day) return iso;
+  if (`${year}-${month}` === monthKey) return `${month}/${day}`;
+  return `${month}/${day}/${year.slice(2)}`;
+}
+
+const rowActionClassName =
+  "inline-flex h-8 shrink-0 items-center justify-center rounded-md border px-2.5 text-sm font-medium touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+
 function DueDateControl({
   billId,
   billName,
   dueDate,
   monthId,
   monthKey,
-  touch,
 }: {
   billId: number;
   billName: string;
   dueDate: string | null;
   monthId: number;
   monthKey: string;
-  touch: boolean;
 }) {
   const router = useRouter();
   const requestId = useRef(0);
@@ -113,8 +122,18 @@ function DueDateControl({
     }
   }
 
+  const label = value ? formatCompactDueDate(value, monthKey) : "Set";
+
   return (
-    <div className={cn("relative inline-flex max-w-full items-center", touch && "min-h-11")}>
+    <div
+      className={cn(
+        "relative inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1.5 text-sm tabular-nums text-muted-foreground",
+        "hover:bg-muted has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+        saving && "opacity-50"
+      )}
+    >
+      <span aria-hidden>{label}</span>
+      <Calendar aria-hidden className="size-3.5 shrink-0" />
       <input
         type="date"
         value={value}
@@ -123,15 +142,13 @@ function DueDateControl({
         disabled={saving}
         onChange={onChange}
         className={cn(
-          "relative cursor-pointer rounded-md border border-input bg-transparent text-muted-foreground tabular-nums scheme-dark",
-          "touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          "disabled:cursor-wait disabled:opacity-50",
+          "absolute inset-0 z-10 cursor-pointer opacity-0",
+          "touch-manipulation disabled:cursor-wait",
           "[&::-webkit-calendar-picker-indicator]:cursor-pointer",
           // Chromium only opens the popup from the calendar glyph, and the date
           // text sits above that glyph. Let clicks fall through to the glyph.
           "pointer-fine:[&::-webkit-datetime-edit]:pointer-events-none",
           "pointer-fine:[&::-webkit-datetime-edit-fields-wrapper]:pointer-events-none",
-          "pointer-fine:pr-6",
           "pointer-fine:[&::-webkit-calendar-picker-indicator]:absolute",
           "pointer-fine:[&::-webkit-calendar-picker-indicator]:inset-0",
           "pointer-fine:[&::-webkit-calendar-picker-indicator]:m-0",
@@ -139,13 +156,8 @@ function DueDateControl({
           "pointer-fine:[&::-webkit-calendar-picker-indicator]:w-full",
           "pointer-fine:[&::-webkit-calendar-picker-indicator]:cursor-pointer",
           "pointer-fine:[&::-webkit-calendar-picker-indicator]:bg-transparent",
-          "pointer-fine:[&::-webkit-calendar-picker-indicator]:opacity-0",
-          touch ? "h-11 min-w-11 px-2 text-base" : "h-7 px-1.5 text-[11px]"
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:opacity-0"
         )}
-      />
-      <Calendar
-        aria-hidden
-        className="pointer-events-none absolute right-1.5 hidden size-3.5 text-muted-foreground pointer-fine:block"
       />
     </div>
   );
@@ -157,14 +169,12 @@ function PaymentStateButton({
   status,
   monthId,
   monthKey,
-  touch,
 }: {
   billId: number;
   billName: string;
   status: string;
   monthId: number;
   monthKey: string;
-  touch: boolean;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -197,10 +207,7 @@ function PaymentStateButton({
       disabled={saving}
       onClick={onClick}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-md border font-medium touch-manipulation",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        "disabled:opacity-50",
-        touch ? "h-11 px-3 text-xs" : "h-7 px-2 text-[11px]",
+        rowActionClassName,
         next === "pending"
           ? "border-amber-600/50 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 dark:text-amber-200"
           : "border-emerald-600/50 bg-emerald-500/10 text-emerald-800 hover:bg-emerald-500/20 dark:text-emerald-200"
@@ -250,7 +257,7 @@ export function BillRow({
   const fundingBadge = (
     <span
       className={cn(
-        "inline-flex max-w-full truncate rounded px-1.5 py-0.5 text-[10px] font-medium",
+        "inline-flex max-w-full truncate rounded px-1.5 py-0.5 text-xs font-medium",
         unassigned
           ? "bg-muted text-muted-foreground"
           : paycheckBadgeClass(win?.colorKey)
@@ -291,7 +298,7 @@ export function BillRow({
       )}
     >
       <span className="truncate">{bill.name}</span>
-      <ExternalLink className="size-3 shrink-0 opacity-70" aria-hidden />
+      <ExternalLink className="size-3.5 shrink-0 opacity-70" aria-hidden />
     </a>
   ) : (
     <span className={cn("block min-w-0 truncate font-medium", nameClass || undefined)}>
@@ -302,7 +309,7 @@ export function BillRow({
   const statusEl = (
     <span
       className={cn(
-        "text-[11px] font-medium",
+        "text-sm font-medium",
         pendingVisual && "text-amber-700 dark:text-amber-300",
         settledPaid && "text-emerald-700 dark:text-emerald-400",
         !pendingVisual && !settledPaid && "text-foreground"
@@ -312,7 +319,6 @@ export function BillRow({
     </span>
   );
 
-  const touch = as !== "table";
   const quickPay = (
     <PaymentStateButton
       billId={bill.id}
@@ -320,7 +326,6 @@ export function BillRow({
       status={bill.status}
       monthId={monthId}
       monthKey={monthKey}
-      touch={touch}
     />
   );
   const dueDateControl = (
@@ -330,7 +335,6 @@ export function BillRow({
       dueDate={bill.dueDate}
       monthId={monthId}
       monthKey={monthKey}
-      touch={touch}
     />
   );
 
@@ -338,10 +342,7 @@ export function BillRow({
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         aria-label={`Edit ${bill.name}`}
-        className={cn(
-          "inline-flex shrink-0 items-center justify-center rounded-md border border-input bg-background font-medium hover:bg-muted touch-manipulation",
-          touch ? "h-11 px-3 text-xs" : "h-7 px-2 text-[11px]"
-        )}
+        className={cn(rowActionClassName, "border-input bg-background hover:bg-muted")}
       >
         Edit
       </SheetTrigger>
@@ -388,24 +389,24 @@ export function BillRow({
       >
         <td
           className={cn(
-            "px-2 py-1.5 align-middle whitespace-nowrap text-xs text-muted-foreground",
+            "px-3 py-2.5 align-middle whitespace-nowrap text-muted-foreground",
             borderClass
           )}
         >
           {dueDateControl}
         </td>
-        <td className="overflow-hidden px-2 py-1.5 align-middle">{nameCell}</td>
-        <td className="px-2 py-1.5 align-middle whitespace-nowrap text-xs tabular-nums">
+        <td className="overflow-hidden px-3 py-2.5 align-middle text-base">{nameCell}</td>
+        <td className="px-3 py-2.5 align-middle whitespace-nowrap text-base font-medium tabular-nums">
           {formatMoney(effective)}
         </td>
-        <td className="overflow-hidden px-2 py-1.5 align-middle">{fundingBadge}</td>
-        <td className="px-2 py-1.5 align-middle whitespace-nowrap">
-          <div className="flex items-center gap-1.5">
+        <td className="overflow-hidden px-3 py-2.5 align-middle">{fundingBadge}</td>
+        <td className="px-3 py-2.5 align-middle whitespace-nowrap">
+          <div className="flex items-center gap-2">
             {statusEl}
             {quickPay}
           </div>
         </td>
-        <td className="px-2 py-1.5 align-middle whitespace-nowrap">{fullEdit}</td>
+        <td className="px-3 py-2.5 align-middle whitespace-nowrap">{fullEdit}</td>
       </tr>
     );
   }
@@ -420,18 +421,26 @@ export function BillRow({
         filteredHighlight
       )}
     >
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-2 py-2">
-        {dueDateControl}
-        <div className="min-w-0">{nameCell}</div>
-        <span className="text-right text-xs font-medium tabular-nums">
-          {formatMoney(effective)}
-        </span>
-        <div className="col-start-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          {fundingBadge}
-          {statusEl}
-          {quickPay}
+      <div className="flex items-start gap-3 px-3 py-3">
+        <div className="pt-0.5">{dueDateControl}</div>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-baseline justify-between gap-3">
+            <div className="min-w-0 text-base">{nameCell}</div>
+            <span className="shrink-0 text-base font-medium tabular-nums">
+              {formatMoney(effective)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              {fundingBadge}
+              {statusEl}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {quickPay}
+              {fullEdit}
+            </div>
+          </div>
         </div>
-        <div className="col-start-3 row-start-2 justify-self-end">{fullEdit}</div>
       </div>
     </li>
   );

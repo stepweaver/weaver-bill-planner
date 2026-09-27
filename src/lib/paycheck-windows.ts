@@ -33,31 +33,25 @@ export interface IncomeEventForWindow {
   name?: string | null;
 }
 
-export function buildPaycheckWindows(
-  incomeEvents: IncomeEventForWindow[],
-  monthKey: string
-): PaycheckWindow[] {
-  const [year, month] = monthKey.split("-").map(Number);
-  const monthStart = startOfMonth(new Date(year, month - 1));
-  const monthEnd = endOfMonth(new Date(year, month - 1));
+/** One paycheck period: same calendar day, then dates within two days, in date order. */
+export interface PaycheckGroup {
+  /** YYYY-MM-DD (or the stored date string), ascending. The first date is the period start. */
+  dates: string[];
+  events: IncomeEventForWindow[];
+}
 
+/**
+ * Group income the same way paycheck windows do.
+ * Same-day events stay together. A later event within two days joins that group.
+ * The planning snapshot uses these groups so it does not invent a second payday rule.
+ */
+export function buildPaycheckGroups(
+  incomeEvents: IncomeEventForWindow[]
+): PaycheckGroup[] {
   const sorted = [...incomeEvents].sort(
     (a, b) =>
       new Date(a.expectedDate).getTime() - new Date(b.expectedDate).getTime()
   );
-
-  if (sorted.length === 0) {
-    return [
-      {
-        key: "no-income",
-        label: "No income",
-        startDate: monthStart,
-        endDate: monthEnd,
-        colorKey: "slate",
-        incomeEventId: null,
-      },
-    ];
-  }
 
   // Group incomes by same calendar day
   const dayGroups: { date: string; events: typeof sorted }[] = [];
@@ -73,20 +67,47 @@ export function buildPaycheckWindows(
 
   // Merge adjacent days (e.g. 03/05 + 03/06) into one pay period to avoid empty windows
   const MERGE_DAYS = 2; // merge if next income is within this many days
-  const groups: { dates: string[]; events: typeof sorted }[] = [];
+  const groups: PaycheckGroup[] = [];
   for (const dg of dayGroups) {
     const last = groups[groups.length - 1];
     const thisDate = parseISO(dg.date);
     if (
       last &&
       last.dates.length > 0 &&
-      thisDate.getTime() - parseISO(last.dates[last.dates.length - 1]!).getTime() <= MERGE_DAYS * 24 * 60 * 60 * 1000
+      thisDate.getTime() - parseISO(last.dates[last.dates.length - 1]!).getTime() <=
+        MERGE_DAYS * 24 * 60 * 60 * 1000
     ) {
       last.dates.push(dg.date);
       last.events.push(...dg.events);
     } else {
       groups.push({ dates: [dg.date], events: [...dg.events] });
     }
+  }
+
+  return groups;
+}
+
+export function buildPaycheckWindows(
+  incomeEvents: IncomeEventForWindow[],
+  monthKey: string
+): PaycheckWindow[] {
+  const [year, month] = monthKey.split("-").map(Number);
+  const monthStart = startOfMonth(new Date(year, month - 1));
+  const monthEnd = endOfMonth(new Date(year, month - 1));
+
+  const groups = buildPaycheckGroups(incomeEvents);
+
+  if (groups.length === 0) {
+    return [
+      {
+        key: "no-income",
+        label: "No income",
+        startDate: monthStart,
+        endDate: monthEnd,
+        colorKey: "slate",
+        incomeEventId: null,
+      },
+    ];
   }
 
   const windows: PaycheckWindow[] = [];

@@ -76,7 +76,7 @@ export function IncomeRow({
   const actions = (
     <>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger className="inline-flex h-6 shrink-0 items-center justify-center rounded px-2 text-[11px] font-medium hover:bg-muted">
+        <SheetTrigger className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-input bg-background px-2.5 text-sm font-medium hover:bg-muted">
           Edit
         </SheetTrigger>
         <SheetContent className="flex h-full w-full max-w-none flex-col overflow-y-auto px-6 sm:max-w-none">
@@ -105,7 +105,7 @@ export function IncomeRow({
         type="button"
         variant="ghost"
         size="sm"
-        className="text-destructive h-6 px-1.5 text-[11px] shrink-0"
+        className="h-8 shrink-0 px-2.5 text-sm text-destructive"
         onClick={handleDelete}
       >
         Del
@@ -121,11 +121,11 @@ export function IncomeRow({
   if (as === "list") {
     return (
       <li className="border-b border-border last:border-b-0">
-        <div className="py-2.5 px-2 space-y-1.5">
+        <div className="space-y-2 px-3 py-3">
           <div className="min-w-0 overflow-hidden">
-            <span className="block min-w-0 truncate font-medium">{event.name}</span>
+            <span className="block min-w-0 truncate text-base font-medium">{event.name}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
             <span className="tabular-nums text-muted-foreground shrink-0">{formatMMDD(event.expectedDate)}</span>
             <span className="tabular-nums shrink-0">{displayAmount}</span>
             {diff != null && (
