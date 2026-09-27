@@ -156,11 +156,35 @@ function DueDateControl({
       <span aria-hidden>{label}</span>
       <Calendar aria-hidden className="size-3.5 shrink-0" />
       <input
-        type="date"
+        // Stay a plain text field until the tap. iOS Safari builds a date-picker
+        // control for every type="date" during page load, and a month of them
+        // (twice, while both layouts are mounted) gets the tab killed.
+        type="text"
+        inputMode="none"
+        readOnly
         value={value}
         aria-label={dueDate ? `Due date for ${billName}` : `Set due date for ${billName}`}
         aria-busy={saving}
         disabled={saving}
+        onPointerDown={(event) => {
+          const input = event.currentTarget;
+          if (input.disabled || input.type === "date") return;
+          input.readOnly = false;
+          input.type = "date";
+        }}
+        onClick={(event) => {
+          const input = event.currentTarget;
+          if (input.disabled) return;
+          if (input.type !== "date") {
+            input.readOnly = false;
+            input.type = "date";
+          }
+          try {
+            input.showPicker();
+          } catch {
+            input.focus();
+          }
+        }}
         onChange={onChange}
         className={cn(
           "absolute inset-0 z-10 cursor-pointer opacity-0",

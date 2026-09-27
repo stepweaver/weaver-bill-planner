@@ -342,6 +342,14 @@ body {
   animation: scanlines 0.1s linear infinite;
 }
 
+/* A full-viewport layer repainting 10 times a second blanks or hangs mobile Safari. */
+@media (max-width: 767px) {
+  .dark body::after {
+    content: none;
+    animation: none;
+  }
+}
+
 @keyframes scanlines {
   0% { transform: translateY(0); }
   100% { transform: translateY(4px); }
