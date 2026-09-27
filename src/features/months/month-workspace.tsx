@@ -1,26 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { MonthAttentionStrip } from "./month-attention-strip";
-import { IncomePaycheckPanel } from "./income-paycheck-panel";
-import {
-  BILL_FILTER_UNASSIGNED,
-  BILL_STATUS_FILTER_ITEMS,
-  filterBillsByWindowKey,
-  filterBillsByStatus,
-  type BillStatusFilter,
-} from "@/features/bills/bill-ledger";
 import { BillTableByWindow } from "@/features/bills/bill-table-by-window";
+import { AddIncomeButton } from "@/features/income/add-income-button";
+import { IncomeList } from "@/features/income/income-list";
 import { MonthHud } from "./month-hud";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { MonthAttention, PaycheckWindowSummary } from "@/lib/month-funding";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 import type { MonthMetrics } from "@/lib/month-metrics";
@@ -61,7 +45,6 @@ export function MonthWorkspace({
   billInstances,
   windows,
   metrics,
-  paycheckSummaries,
   attention,
 }: {
   monthKey: string;
@@ -70,117 +53,29 @@ export function MonthWorkspace({
   billInstances: BillInstance[];
   windows: PaycheckWindow[];
   metrics: MonthMetrics;
+  /** Kept so the month page can keep passing summaries. The paycheck rail is not mounted. */
   paycheckSummaries: PaycheckWindowSummary[];
   attention: MonthAttention;
 }) {
-  const [windowFilter, setWindowFilter] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<BillStatusFilter>("all");
-
-  const groupedBills = useMemo(() => {
-    const byWindow = filterBillsByWindowKey(billInstances, windowFilter);
-    return filterBillsByStatus(byWindow, statusFilter);
-  }, [billInstances, windowFilter, statusFilter]);
-
-  const paycheckSelectKey =
-    windowFilter === BILL_FILTER_UNASSIGNED ? null : windowFilter;
-
   return (
     <div className="mt-4 space-y-5">
       <MonthAttentionStrip attention={attention} />
       <MonthHud metrics={metrics} />
 
-      <Card className="hud-panel border-border/70">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm tracking-wide uppercase text-muted-foreground">Control deck</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2 pt-0">
-          <div className="flex w-full min-w-0 flex-1 flex-col gap-1.5 sm:min-w-[12rem] sm:flex-row sm:items-center">
-            <span className="shrink-0 text-[11px] text-muted-foreground uppercase tracking-wider">
-              Bill status
-            </span>
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => setStatusFilter(v as BillStatusFilter)}
-              items={BILL_STATUS_FILTER_ITEMS}
-            >
-              <SelectTrigger className="h-8 w-full min-w-0 text-xs bg-background/70">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {BILL_STATUS_FILTER_ITEMS.map(({ value, label }) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-base font-medium">Income</h2>
+          <AddIncomeButton monthId={monthId} monthKey={monthKey} />
+        </div>
+        <IncomeList events={incomeEvents} monthKey={monthKey} />
+      </section>
 
-          {attention.unassignedIds.length > 0 && (
-            <Button
-              type="button"
-              variant={windowFilter === BILL_FILTER_UNASSIGNED ? "secondary" : "outline"}
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() =>
-                setWindowFilter((f) =>
-                  f === BILL_FILTER_UNASSIGNED ? null : BILL_FILTER_UNASSIGNED
-                )
-              }
-            >
-              Unassigned ({attention.unassignedIds.length})
-            </Button>
-          )}
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => {
-              setWindowFilter(null);
-              setStatusFilter("all");
-            }}
-          >
-            Reset filters
-          </Button>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(340px,1fr)] xl:items-start">
-        <section className="space-y-4 min-w-0">
-          <BillTableByWindow
-            windows={windows}
-            bills={groupedBills}
-            monthId={monthId}
-            monthKey={monthKey}
-          />
-        </section>
-
-        <aside className="min-w-0">
-          <Card className="hud-panel border-border/70">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Income & paychecks</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <IncomePaycheckPanel
-                monthId={monthId}
-                monthKey={monthKey}
-                incomeEvents={incomeEvents}
-                windows={windows}
-                paycheckSummaries={paycheckSummaries}
-                selectedWindowKey={paycheckSelectKey}
-                onSelectWindow={(key) => setWindowFilter(key)}
-                hasActiveFilter={windowFilter != null || statusFilter !== "all"}
-                onClearFilter={() => {
-                  setWindowFilter(null);
-                  setStatusFilter("all");
-                }}
-              />
-            </CardContent>
-          </Card>
-        </aside>
-      </div>
+      <BillTableByWindow
+        windows={windows}
+        bills={billInstances}
+        monthId={monthId}
+        monthKey={monthKey}
+      />
     </div>
   );
 }

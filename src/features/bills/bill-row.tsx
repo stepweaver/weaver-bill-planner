@@ -68,6 +68,7 @@ export function BillRow({
   windows,
   as = "ledger",
   highlightWindowKey = null,
+  anchor = true,
 }: {
   bill: Bill;
   monthId: number;
@@ -76,6 +77,8 @@ export function BillRow({
   as?: "ledger" | "list" | "table";
   /** When parent filters by paycheck, highlight matching rows */
   highlightWindowKey?: string | null;
+  /** False when a second layout of the same bill is also mounted, so the anchor id stays unique. */
+  anchor?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -119,11 +122,6 @@ export function BillRow({
       ? "ring-1 ring-primary/40"
       : "";
 
-  const manualPaycheckLabel =
-    bill.manualAssignment && bill.assignedGroupKey
-      ? (windows.find((w) => w.key === bill.assignedGroupKey)?.label ?? bill.assignedGroupKey)
-      : null;
-
   const nameClass = pendingVisual
     ? "text-amber-700 dark:text-amber-300"
     : settledPaid
@@ -148,6 +146,19 @@ export function BillRow({
   ) : (
     <span className={cn("block min-w-0 truncate font-medium", nameClass || undefined)}>
       {bill.name}
+    </span>
+  );
+
+  const statusEl = (
+    <span
+      className={cn(
+        "text-[11px] font-medium",
+        pendingVisual && "text-amber-700 dark:text-amber-300",
+        settledPaid && "text-emerald-700 dark:text-emerald-400",
+        !pendingVisual && !settledPaid && "text-foreground"
+      )}
+    >
+      {statusLabel(bill.status)}
     </span>
   );
 
@@ -189,116 +200,57 @@ export function BillRow({
     </Sheet>
   );
 
-  const noteText = bill.notes?.trim() ?? "";
-  const readOnlyDetails = (
-    <div className="flex flex-col gap-1.5 min-w-0">
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-        <span>
-          Status:{" "}
-          <span
-            className={cn(
-              "font-medium",
-              pendingVisual && "text-amber-700 dark:text-amber-300",
-              settledPaid && "text-emerald-700 dark:text-emerald-400",
-              !pendingVisual && !settledPaid && "text-foreground"
-            )}
-          >
-            {statusLabel(bill.status)}
-          </span>
-        </span>
-        <span>
-          Paid:{" "}
-          <span className="tabular-nums font-medium text-foreground">
-            {formatMoney(bill.amountPaid)}
-          </span>
-        </span>
-        {manualPaycheckLabel ? (
-          <span>
-            Paycheck:{" "}
-            <span className="font-medium text-foreground">{manualPaycheckLabel}</span>
-          </span>
-        ) : null}
-      </div>
-      {noteText ? (
-        <p
-          className="text-[11px] text-muted-foreground truncate"
-          title={noteText}
-        >
-          Note: <span className="text-foreground">{noteText}</span>
-        </p>
-      ) : null}
-      {fullEdit}
-    </div>
-  );
-
-  if (as === "list") {
-    return (
-      <li
-        id={`bill-row-${bill.id}`}
-        className={cn("border-b last:border-b-0 scroll-mt-24", borderClass, rowTint, filteredHighlight)}
-      >
-        <div className="py-2.5 px-2 space-y-2">
-          <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <span className="tabular-nums text-xs text-muted-foreground shrink-0">
-              {formatShortDate(bill.dueDate)}
-            </span>
-            <div className="min-w-0 flex-1">{nameCell}</div>
-            {fundingBadge}
-          </div>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-            <span>
-              Due: <span className="tabular-nums text-foreground">{formatMoney(effective)}</span>
-            </span>
-          </div>
-          {readOnlyDetails}
-        </div>
-      </li>
-    );
-  }
+  const rowId = anchor ? `bill-row-${bill.id}` : undefined;
 
   if (as === "table") {
     return (
       <tr
-        id={`bill-row-${bill.id}`}
-        className={cn("border-b scroll-mt-24", borderClass, rowTint, filteredHighlight)}
+        id={rowId}
+        className={cn("border-b scroll-mt-24", rowTint, filteredHighlight)}
       >
-        <td className="px-2 py-1.5 align-top tabular-nums text-xs text-muted-foreground whitespace-nowrap">
+        <td
+          className={cn(
+            "px-2 py-1.5 align-middle whitespace-nowrap tabular-nums text-xs text-muted-foreground",
+            borderClass
+          )}
+        >
           {formatShortDate(bill.dueDate)}
         </td>
-        <td className="px-2 py-1.5 align-top min-w-0">{nameCell}</td>
-        <td className="px-2 py-1.5 align-top">{fundingBadge}</td>
-        <td className="px-2 py-1.5 align-top text-xs tabular-nums">{formatMoney(effective)}</td>
-        <td className="px-2 py-1.5 align-top" colSpan={2}>
-          {readOnlyDetails}
+        <td className="overflow-hidden px-2 py-1.5 align-middle">{nameCell}</td>
+        <td className="px-2 py-1.5 align-middle whitespace-nowrap text-xs tabular-nums">
+          {formatMoney(effective)}
         </td>
+        <td className="overflow-hidden px-2 py-1.5 align-middle">{fundingBadge}</td>
+        <td className="px-2 py-1.5 align-middle whitespace-nowrap">{statusEl}</td>
+        <td className="px-2 py-1.5 align-middle whitespace-nowrap">{fullEdit}</td>
       </tr>
     );
   }
 
   return (
-    <div
-      id={`bill-row-${bill.id}`}
+    <li
+      id={rowId}
       className={cn(
-        "rounded-md border border-border/80 scroll-mt-24 pl-2 pr-2 py-2 space-y-2",
+        "border-b last:border-b-0 scroll-mt-24",
         borderClass,
         rowTint,
         filteredHighlight
       )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <span className="tabular-nums text-xs font-medium text-muted-foreground">
-            {formatShortDate(bill.dueDate)}
-          </span>
-          <div className="min-w-0 max-w-[200px] sm:max-w-none">{nameCell}</div>
+      <div className="grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-2 py-2">
+        <span className="tabular-nums text-xs text-muted-foreground">
+          {formatShortDate(bill.dueDate)}
+        </span>
+        <div className="min-w-0">{nameCell}</div>
+        <span className="text-right text-xs font-medium tabular-nums">
+          {formatMoney(effective)}
+        </span>
+        <div className="col-start-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          {fundingBadge}
+          {statusEl}
         </div>
-        {fundingBadge}
+        <div className="col-start-3 row-start-2 justify-self-end">{fullEdit}</div>
       </div>
-      <div className="text-xs text-muted-foreground">
-        Amount due:{" "}
-        <span className="tabular-nums font-medium text-foreground">{formatMoney(effective)}</span>
-      </div>
-      {readOnlyDetails}
-    </div>
+    </li>
   );
 }

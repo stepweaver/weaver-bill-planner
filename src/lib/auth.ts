@@ -50,7 +50,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }
           if (pairs.length === 0) pairs.push([legacyUser, legacyPass]);
           const allowed = pairs.some(
-            ([u, p]) => username === u && password === p
+            ([u, p]) =>
+              username.trim().toLowerCase() === u.trim().toLowerCase() && password === p
           );
           if (allowed) return { id: "1", name: username };
           return null;

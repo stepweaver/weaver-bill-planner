@@ -67,7 +67,7 @@ export function LoginForm() {
           id="username"
           type="text"
           autoComplete="username"
-          placeholder="admin"
+          placeholder="Username"
           {...register("username")}
         />
         {errors.username && (

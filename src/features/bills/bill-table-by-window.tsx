@@ -1,5 +1,15 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { BillRow } from "./bill-row";
 import { AddBillButton } from "./add-bill-button";
+import {
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 
 type BillInstance = {
@@ -31,14 +41,18 @@ function sortBillsByDueDateThenId(bills: BillInstance[]): BillInstance[] {
   });
 }
 
-const COLOR_CLASSES: Record<string, string> = {
-  rose: "bg-rose-500/10 border-l-4 border-rose-500",
-  blue: "bg-blue-500/10 border-l-4 border-blue-500",
-  amber: "bg-amber-500/10 border-l-4 border-amber-500",
-  green: "bg-green-500/10 border-l-4 border-green-500",
-  violet: "bg-violet-500/10 border-l-4 border-violet-500",
-  slate: "bg-slate-500/10 border-l-4 border-slate-500",
-};
+/** null until the client knows the viewport, so the first paint can render both layouts. */
+function useMdUp(): boolean | null {
+  const [mdUp, setMdUp] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const update = () => setMdUp(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return mdUp;
+}
 
 export function BillTableByWindow({
   windows,
@@ -51,54 +65,26 @@ export function BillTableByWindow({
   monthId: number;
   monthKey: string;
 }) {
-  const billsByWindow = new Map<string, BillInstance[]>();
-  for (const b of bills) {
-    const key = b.displayWindowKey ?? "unassigned";
-    if (!billsByWindow.has(key)) billsByWindow.set(key, []);
-    billsByWindow.get(key)!.push(b);
-  }
+  const mdUp = useMdUp();
+  const showList = mdUp !== true;
+  const showTable = mdUp !== false;
+  const sorted = sortBillsByDueDateThenId(bills);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-medium">Bills by paycheck window</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-base font-medium">Bills</h2>
         <AddBillButton monthId={monthId} monthKey={monthKey} windows={windows} />
       </div>
-      {windows
-        .filter((win) => (billsByWindow.get(win.key) ?? []).length > 0)
-        .map((win) => {
-          const winBills = sortBillsByDueDateThenId(billsByWindow.get(win.key) ?? []);
-          const isBefore = win.key.startsWith("pre-");
-          const colorClass = isBefore
-            ? "border-l-4 border-white/30 bg-transparent"
-            : (COLOR_CLASSES[win.colorKey] ?? "bg-muted/50");
-          return (
-            <div key={win.key} className={`rounded border p-2 ${colorClass}`}>
-              <div className="min-w-0">
-                <ul className="space-y-0 text-xs">
-                  {winBills.map((b) => (
-                    <BillRow
-                      key={b.id}
-                      bill={b}
-                      monthId={monthId}
-                      monthKey={monthKey}
-                      windows={windows}
-                      as="list"
-                    />
-                  ))}
-                </ul>
-              </div>
-            </div>
-          );
-        })}
-      {billsByWindow.get("unassigned")?.length ? (
-        <div className="rounded border border-dashed p-2 bg-muted/30">
-          <h3 className="mb-1 text-xs font-medium text-muted-foreground">
-            Unassigned
-          </h3>
-          <div className="min-w-0">
-            <ul className="space-y-0 text-xs">
-              {sortBillsByDueDateThenId(billsByWindow.get("unassigned")!).map((b) => (
+      {sorted.length === 0 ? (
+        <p className="rounded border border-dashed px-2 py-3 text-center text-xs text-muted-foreground">
+          No bills.
+        </p>
+      ) : (
+        <>
+          {showList ? (
+            <ul className="rounded border text-xs md:hidden">
+              {sorted.map((b) => (
                 <BillRow
                   key={b.id}
                   bill={b}
@@ -106,12 +92,42 @@ export function BillTableByWindow({
                   monthKey={monthKey}
                   windows={windows}
                   as="list"
+                  anchor={mdUp === false}
                 />
               ))}
             </ul>
-          </div>
-        </div>
-      ) : null}
+          ) : null}
+          {showTable ? (
+            <div className="hidden overflow-hidden rounded border md:block">
+              <Table className="table-fixed text-xs">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-16 text-xs text-muted-foreground">Due</TableHead>
+                    <TableHead className="text-xs text-muted-foreground">Bill</TableHead>
+                    <TableHead className="w-28 text-xs text-muted-foreground">Amount</TableHead>
+                    <TableHead className="w-40 text-xs text-muted-foreground">Paycheck</TableHead>
+                    <TableHead className="w-24 text-xs text-muted-foreground">Status</TableHead>
+                    <TableHead className="w-16 text-xs text-muted-foreground">Edit</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sorted.map((b) => (
+                    <BillRow
+                      key={b.id}
+                      bill={b}
+                      monthId={monthId}
+                      monthKey={monthKey}
+                      windows={windows}
+                      as="table"
+                      anchor
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
