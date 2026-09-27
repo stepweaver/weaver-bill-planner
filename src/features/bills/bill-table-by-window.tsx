@@ -106,7 +106,7 @@ export function BillTableByWindow({
                     <TableHead className="text-xs text-muted-foreground">Bill</TableHead>
                     <TableHead className="w-28 text-xs text-muted-foreground">Amount</TableHead>
                     <TableHead className="w-40 text-xs text-muted-foreground">Paycheck</TableHead>
-                    <TableHead className="w-24 text-xs text-muted-foreground">Status</TableHead>
+                    <TableHead className="w-40 text-xs text-muted-foreground">Status</TableHead>
                     <TableHead className="w-16 text-xs text-muted-foreground">Edit</TableHead>
                   </TableRow>
                 </TableHeader>

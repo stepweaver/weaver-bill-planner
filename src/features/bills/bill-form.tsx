@@ -26,6 +26,25 @@ import { createBill, updateBill, deleteBill } from "./actions";
 import { toast } from "sonner";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 import { cn } from "@/lib/utils";
+import { coerceAmount, getEffectivePlannedAmount } from "@/lib/bill-utils";
+import type { CSSProperties } from "react";
+
+export const billEditorSheetClassName =
+  "flex h-dvh max-h-dvh min-h-0 flex-col gap-0 overflow-hidden p-0";
+
+export const billEditorHeaderClassName = "shrink-0 border-b border-border p-0";
+
+export const billEditorHeaderStyle: CSSProperties = {
+  paddingTop: "max(0.75rem, env(safe-area-inset-top, 0px))",
+  paddingRight: "max(3.5rem, calc(env(safe-area-inset-right, 0px) + 2.75rem))",
+  paddingBottom: "0.75rem",
+  paddingLeft: "max(1.25rem, env(safe-area-inset-left, 0px))",
+};
+
+const billEditorInlinePad: CSSProperties = {
+  paddingLeft: "max(1.25rem, env(safe-area-inset-left, 0px))",
+  paddingRight: "max(1.25rem, env(safe-area-inset-right, 0px))",
+};
 
 type Props = {
   monthId: number;
@@ -62,7 +81,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
     formData.set("name", data.name);
     formData.set("dueDate", data.dueDate ?? "");
     formData.set("plannedAmount", data.plannedAmount != null ? String(data.plannedAmount) : "");
-    formData.set("invoiceAmount", "");
+    formData.set("invoiceAmount", initial?.invoiceAmount != null ? String(initial.invoiceAmount) : "");
     formData.set("amountPaid", data.amountPaid != null ? String(data.amountPaid) : "");
     formData.set("status", data.status);
     formData.set("notes", data.notes ?? "");
@@ -115,14 +134,26 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
 
   const busy = form.formState.isSubmitting || deleting;
 
+  function fillAmountPaidFromDue() {
+    const planned = coerceAmount(form.getValues("plannedAmount"));
+    const invoice = coerceAmount(initial?.invoiceAmount);
+    form.setValue("amountPaid", getEffectivePlannedAmount(planned, invoice), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }
+
   return (
     <form
       onSubmit={form.handleSubmit(onSubmit)}
       className="flex min-h-0 flex-1 flex-col"
     >
       {/* Scrollable fields */}
-      <div className="flex-1 overflow-y-auto px-6">
-        <div className="space-y-4 py-4">
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-3"
+        style={billEditorInlinePad}
+      >
+        <div className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
             <Input id="name" {...form.register("name")} placeholder="Rent" />
@@ -165,27 +196,38 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="plannedAmount">Amount due</Label>
-                <Input
-                  id="plannedAmount"
-                  type="number"
-                  step="0.01"
-                  {...form.register("plannedAmount")}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="plannedAmount">Amount due</Label>
+                  <Input
+                    id="plannedAmount"
+                    type="number"
+                    step="0.01"
+                    {...form.register("plannedAmount")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="amountPaid">Amount paid</Label>
+                  <Input
+                    id="amountPaid"
+                    type="number"
+                    step="0.01"
+                    {...form.register("amountPaid")}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="amountPaid">Amount paid</Label>
-                <Input
-                  id="amountPaid"
-                  type="number"
-                  step="0.01"
-                  {...form.register("amountPaid")}
-                />
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full"
+                disabled={busy}
+                onClick={fillAmountPaidFromDue}
+              >
+                Use amount due
+              </Button>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Pending = payment sent. Paid = cleared your bank. Set amounts to match how you track each bill.
+              Leave amount paid blank to copy amount due when the bill is saved as pending or paid. A typed amount stays as entered.
             </p>
           </div>
 
@@ -233,9 +275,16 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
       </div>
 
       {/* Sticky footer — always visible above the browser toolbar */}
-      <div className="shrink-0 border-t border-border bg-background px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+      <div
+        className="shrink-0 border-t border-border bg-background"
+        style={{
+          ...billEditorInlinePad,
+          paddingTop: "0.75rem",
+          paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
+        }}
+      >
         <div className="flex items-center gap-2">
-          <Button type="submit" disabled={busy} className="h-11 flex-1 sm:flex-none">
+          <Button type="submit" disabled={busy} className="h-11 flex-1">
             {isEdit ? "Update" : "Add"} bill
           </Button>
           {isEdit && initial?.id ? (

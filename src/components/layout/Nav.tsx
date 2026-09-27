@@ -8,7 +8,7 @@ const BRAND = "λledger";
 export function Nav() {
   return (
     <nav
-      className="sticky top-0 z-50 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur"
+      className="sticky top-0 z-50 border-b border-border/60 bg-background/85 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] pb-3 pl-[max(1rem,env(safe-area-inset-left,0px))] backdrop-blur"
       role="navigation"
       aria-label="Main navigation"
     >

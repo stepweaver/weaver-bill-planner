@@ -8,7 +8,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { BillForm } from "./bill-form";
+import { BillForm, billEditorHeaderClassName, billEditorHeaderStyle, billEditorSheetClassName } from "./bill-form";
 import { useRouter } from "next/navigation";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 
@@ -29,8 +29,8 @@ export function AddBillButton({
       <SheetTrigger className="inline-flex h-7 shrink-0 items-center justify-center rounded-md border border-transparent bg-primary px-2.5 text-[0.8rem] font-medium text-primary-foreground hover:bg-primary/80">
         Add bill
       </SheetTrigger>
-      <SheetContent className="flex h-dvh flex-col gap-0 overflow-hidden p-0">
-        <SheetHeader className="shrink-0 border-b border-border px-6 py-4">
+      <SheetContent layout="drawer" className={billEditorSheetClassName}>
+        <SheetHeader className={billEditorHeaderClassName} style={billEditorHeaderStyle}>
           <SheetTitle>Add bill</SheetTitle>
         </SheetHeader>
         <BillForm

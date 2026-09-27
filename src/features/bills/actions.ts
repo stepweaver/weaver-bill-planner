@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { billInstances } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { billInstanceSchema } from "@/lib/validations/bill";
+import { billDueDateSchema, billInstanceSchema, billQuickStatusSchema } from "@/lib/validations/bill";
+import { resolveAmountPaidForStatus } from "@/lib/bill-utils";
 import { recomputeAutoAssignmentsForMonth } from "@/lib/recompute-auto-assignments";
 import { getDefaultLedgerId, getMonthByIdAndLedger } from "@/features/months/actions";
 
@@ -16,6 +17,18 @@ function toNum(v: unknown): number | null {
 
 function toBool(v: unknown): boolean {
   return v === "on" || v === true || v === "true";
+}
+
+const BILL_UPDATE_DENIED = "That bill could not be updated.";
+
+async function authorizeBill(id: number, monthId: number, monthKey: string) {
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return { error: "You need to sign in again." as const };
+  const month = await getMonthByIdAndLedger(monthId, ledgerId);
+  if (!month || month.monthKey !== monthKey) return { error: BILL_UPDATE_DENIED };
+  const [bill] = await db.select().from(billInstances).where(eq(billInstances.id, id)).limit(1);
+  if (!bill || bill.monthId !== monthId) return { error: BILL_UPDATE_DENIED };
+  return { bill };
 }
 
 export async function createBill(monthId: number, monthKey: string, formData: FormData) {
@@ -43,6 +56,12 @@ export async function createBill(monthId: number, monthKey: string, formData: Fo
     return { error: parsed.error.flatten().fieldErrors };
   }
   const d = parsed.data;
+  const amountPaid = resolveAmountPaidForStatus(
+    d.status,
+    d.amountPaid,
+    d.plannedAmount,
+    d.invoiceAmount
+  );
   const [inserted] = await db
     .insert(billInstances)
     .values({
@@ -52,7 +71,7 @@ export async function createBill(monthId: number, monthKey: string, formData: Fo
       dueDate: d.dueDate,
       plannedAmount: d.plannedAmount,
       invoiceAmount: d.invoiceAmount,
-      amountPaid: d.amountPaid,
+      amountPaid,
       status: d.status,
       notes: d.notes,
       paymentUrl: d.paymentUrl,
@@ -101,6 +120,12 @@ export async function updateBill(
     return { error: parsed.error.flatten().fieldErrors };
   }
   const d = parsed.data;
+  const amountPaid = resolveAmountPaidForStatus(
+    d.status,
+    d.amountPaid,
+    d.plannedAmount,
+    d.invoiceAmount
+  );
   await db
     .update(billInstances)
     .set({
@@ -109,7 +134,7 @@ export async function updateBill(
       dueDate: d.dueDate,
       plannedAmount: d.plannedAmount,
       invoiceAmount: d.invoiceAmount,
-      amountPaid: d.amountPaid,
+      amountPaid,
       status: d.status,
       notes: d.notes,
       paymentUrl: d.paymentUrl,
@@ -125,6 +150,60 @@ export async function updateBill(
   }
   revalidatePath(`/months/${monthKey}`, "page");
   return { success: true };
+}
+
+/** Row-level due date change. Recomputes auto assignment the same way a full update does. */
+export async function updateBillDueDate(
+  id: number,
+  monthId: number,
+  monthKey: string,
+  dueDate: string | null
+) {
+  const auth = await authorizeBill(id, monthId, monthKey);
+  if ("error" in auth) return { error: auth.error };
+  const parsed = billDueDateSchema.safeParse(dueDate === "" ? null : dueDate);
+  if (!parsed.success) return { error: "Enter a valid due date." };
+  await db
+    .update(billInstances)
+    .set({
+      dueDate: parsed.data,
+      updatedAt: new Date(),
+    })
+    .where(eq(billInstances.id, id));
+  if (!auth.bill.manualAssignment) {
+    await recomputeAutoAssignmentsForMonth(monthId, monthKey);
+  }
+  revalidatePath(`/months/${monthKey}`, "page");
+  return { success: true as const };
+}
+
+/** Row-level Due → Pending or Pending → Paid. Fills a missing amount paid from amount due. */
+export async function updateBillPaymentState(
+  id: number,
+  monthId: number,
+  monthKey: string,
+  status: "pending" | "paid"
+) {
+  const auth = await authorizeBill(id, monthId, monthKey);
+  if ("error" in auth) return { error: auth.error };
+  const parsed = billQuickStatusSchema.safeParse(status);
+  if (!parsed.success) return { error: "That bill could not be updated." };
+  const amountPaid = resolveAmountPaidForStatus(
+    parsed.data,
+    auth.bill.amountPaid,
+    auth.bill.plannedAmount,
+    auth.bill.invoiceAmount
+  );
+  await db
+    .update(billInstances)
+    .set({
+      status: parsed.data,
+      amountPaid,
+      updatedAt: new Date(),
+    })
+    .where(eq(billInstances.id, id));
+  revalidatePath(`/months/${monthKey}`, "page");
+  return { success: true as const };
 }
 
 export async function deleteBill(id: number, monthKey: string): Promise<{ success?: true; error?: string }> {
