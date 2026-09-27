@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { months, ledgers, incomeEvents, billInstances, billTemplates } from "@/db/schema";
-import { eq, desc, asc, and, inArray } from "drizzle-orm";
+import { eq, desc, asc, and, inArray, lt } from "drizzle-orm";
 import { endOfMonth, format } from "date-fns";
 import { revalidatePath } from "next/cache";
 import { buildPaycheckWindows } from "@/lib/paycheck-windows";
@@ -135,10 +135,35 @@ export async function getOpenMonthKey(): Promise<string | null> {
   return open?.monthKey ?? null;
 }
 
+/** Unresolved bill still owned by an earlier month. Not a copy on the month being viewed. */
+export type CarryoverBill = {
+  id: number;
+  name: string;
+  dueDate: string | null;
+  plannedAmount: number | null;
+  invoiceAmount: number | null;
+  amountPaid: number | null;
+  status: string;
+  notes: string | null;
+  paymentUrl: string | null;
+  displayWindowKey: null;
+  displayIncomeEventId: null;
+  assignedIncomeEventId: number | null;
+  assignedGroupKey: string | null;
+  manualAssignment: boolean | null;
+  templateId: number | null;
+  isRecurring: boolean | null;
+  updatedAt: Date | string | null;
+  ownerMonthId: number;
+  ownerMonthKey: string;
+};
+
 export async function getMonthWithData(monthKey: string) {
   if (!hasDb()) return null;
   const month = await getMonthByKey(monthKey);
   if (!month) return null;
+  const today = new Date();
+  const operational = isCurrentCalendarMonth(monthKey, today);
   const income = await db
     .select()
     .from(incomeEvents)
@@ -149,7 +174,31 @@ export async function getMonthWithData(monthKey: string) {
     .from(billInstances)
     .where(eq(billInstances.monthId, month.id))
     .orderBy(asc(billInstances.sortOrder), asc(billInstances.dueDate));
-  const templateIds = [...new Set(billsRows.map((b) => b.templateId).filter((id): id is number => id != null))];
+  // Any earlier month on this ledger, not only the previous one.
+  const priorRows = operational
+    ? await db
+        .select({
+          bill: billInstances,
+          ownerMonthKey: months.monthKey,
+        })
+        .from(billInstances)
+        .innerJoin(months, eq(billInstances.monthId, months.id))
+        .where(
+          and(
+            eq(months.ledgerId, month.ledgerId),
+            lt(months.monthKey, monthKey),
+            inArray(billInstances.status, ["scheduled", "pending"])
+          )
+        )
+        .orderBy(asc(billInstances.dueDate), asc(billInstances.id))
+    : [];
+  const templateIds = [
+    ...new Set(
+      [...billsRows, ...priorRows.map((row) => row.bill)]
+        .map((b) => b.templateId)
+        .filter((id): id is number => id != null)
+    ),
+  ];
   const templates =
     templateIds.length > 0
       ? await db
@@ -175,7 +224,47 @@ export async function getMonthWithData(monthKey: string) {
     };
   });
   const metrics = calculateMonthMetrics(income, bills, monthKey);
+  const carryoverBills: CarryoverBill[] = priorRows
+    .map(({ bill, ownerMonthKey }) => ({
+      id: bill.id,
+      name: bill.name,
+      dueDate: dateValueToIso(bill.dueDate),
+      plannedAmount: bill.plannedAmount,
+      invoiceAmount: bill.invoiceAmount,
+      amountPaid: bill.amountPaid,
+      status: bill.status,
+      notes: bill.notes,
+      paymentUrl:
+        bill.paymentUrl ?? (bill.templateId ? urlByTemplateId[bill.templateId] ?? null : null),
+      displayWindowKey: null,
+      displayIncomeEventId: null,
+      assignedIncomeEventId: bill.assignedIncomeEventId,
+      assignedGroupKey: bill.assignedGroupKey,
+      manualAssignment: bill.manualAssignment,
+      templateId: bill.templateId,
+      isRecurring: bill.isRecurring,
+      updatedAt: bill.updatedAt,
+      ownerMonthId: bill.monthId,
+      ownerMonthKey,
+    }))
+    .sort((a, b) => {
+      const dateA = a.dueDate ?? "9999-99-99";
+      const dateB = b.dueDate ?? "9999-99-99";
+      if (dateA !== dateB) return dateA < dateB ? -1 : 1;
+      return a.id - b.id;
+    });
   const billsForFunding = bills as BillForFunding[];
+  const carryoverForFunding: BillForFunding[] = carryoverBills.map((bill) => ({
+    id: bill.id,
+    name: bill.name,
+    dueDate: bill.dueDate,
+    plannedAmount: bill.plannedAmount,
+    invoiceAmount: bill.invoiceAmount,
+    amountPaid: bill.amountPaid,
+    status: bill.status,
+    assignedIncomeEventId: bill.assignedIncomeEventId,
+    assignedGroupKey: bill.assignedGroupKey,
+  }));
   const paycheckSummaries = buildPaycheckSummaries(
     windows,
     billsForFunding,
@@ -188,11 +277,9 @@ export async function getMonthWithData(monthKey: string) {
   const attention = buildMonthAttention(
     windows,
     billsForFunding,
-    paycheckSummaries
+    paycheckSummaries,
+    operational ? carryoverForFunding : []
   );
-
-  const today = new Date();
-  const operational = isCurrentCalendarMonth(monthKey, today);
   const [ledgerRow] = await db
     .select({
       availableBalance: ledgers.availableBalance,
@@ -220,6 +307,17 @@ export async function getMonthWithData(monthKey: string) {
       amountPaid: bill.amountPaid,
       status: bill.status,
     })),
+    carryoverBills: operational
+      ? carryoverBills.map((bill) => ({
+          id: bill.id,
+          name: bill.name,
+          dueDate: bill.dueDate,
+          plannedAmount: bill.plannedAmount,
+          invoiceAmount: bill.invoiceAmount,
+          amountPaid: bill.amountPaid,
+          status: bill.status,
+        }))
+      : [],
     // Historical and future months must not treat today's bank number as theirs.
     availableBalance: operational ? storedBalance : null,
     today,
@@ -243,6 +341,7 @@ export async function getMonthWithData(monthKey: string) {
     month,
     incomeEvents: income,
     billInstances: billsWithWindow,
+    carryoverBills: operational ? carryoverBills : [],
     windows,
     metrics,
     paycheckSummaries,

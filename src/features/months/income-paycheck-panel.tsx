@@ -53,7 +53,7 @@ export function IncomePaycheckPanel({
           <h3 className="text-sm font-medium">Income events</h3>
           <AddIncomeButton monthId={monthId} monthKey={monthKey} />
         </div>
-        <IncomeList events={incomeEvents} monthKey={monthKey} />
+        <IncomeList events={incomeEvents} monthKey={monthKey} windows={windows} />
       </div>
     </div>
   );

@@ -144,7 +144,12 @@ export interface MonthAttention {
 export function buildMonthAttention(
   windows: PaycheckWindow[],
   bills: BillForFunding[],
-  summaries: PaycheckWindowSummary[]
+  summaries: PaycheckWindowSummary[],
+  /**
+   * Unresolved bills from earlier months, shown on the current workspace.
+   * Scheduled ones are overdue. Pending ones are clearance, not a second overdue.
+   */
+  carryoverBills: BillForFunding[] = []
 ): MonthAttention {
   const today = startOfDay(new Date());
   const soonEnd = addDays(today, DUE_SOON_DAYS);
@@ -153,6 +158,15 @@ export function buildMonthAttention(
   const dueSoonIds: number[] = [];
   const unassignedIds: number[] = [];
   const missingAmountIds: number[] = [];
+
+  const monthBillIds = new Set(bills.map((bill) => bill.id));
+  for (const bill of carryoverBills) {
+    if (monthBillIds.has(bill.id) || overdueIds.includes(bill.id)) continue;
+    if (bill.status !== "scheduled") continue;
+    const effective = getEffectivePlannedAmount(bill.plannedAmount, bill.invoiceAmount);
+    if (isBillPaid(bill.status, bill.amountPaid, effective)) continue;
+    overdueIds.push(bill.id);
+  }
 
   for (const b of bills) {
     const effective = getEffectivePlannedAmount(b.plannedAmount, b.invoiceAmount);

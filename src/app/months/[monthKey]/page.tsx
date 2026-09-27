@@ -19,6 +19,7 @@ export default async function MonthDetailPage({
     month,
     incomeEvents,
     billInstances,
+    carryoverBills,
     windows,
     paycheckSummaries,
     attention,
@@ -33,6 +34,7 @@ export default async function MonthDetailPage({
         monthId={month.id}
         incomeEvents={incomeEvents}
         billInstances={billInstances}
+        carryoverBills={carryoverBills}
         windows={windows}
         paycheckSummaries={paycheckSummaries}
         attention={attention}

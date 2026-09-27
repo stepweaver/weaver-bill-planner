@@ -3,9 +3,10 @@
 import { MonthAttentionStrip } from "./month-attention-strip";
 import { PlanningSnapshot } from "./planning-snapshot";
 import { BillTableByWindow } from "@/features/bills/bill-table-by-window";
+import { CarryoverLedger } from "@/features/bills/carryover-ledger";
 import { AddIncomeButton } from "@/features/income/add-income-button";
 import { IncomeList } from "@/features/income/income-list";
-import type { PlanningSnapshotPayload } from "@/features/months/actions";
+import type { CarryoverBill, PlanningSnapshotPayload } from "@/features/months/actions";
 import type { MonthAttention, PaycheckWindowSummary } from "@/lib/month-funding";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 
@@ -43,6 +44,7 @@ export function MonthWorkspace({
   monthId,
   incomeEvents,
   billInstances,
+  carryoverBills,
   windows,
   attention,
   planningSnapshot,
@@ -51,6 +53,7 @@ export function MonthWorkspace({
   monthId: number;
   incomeEvents: IncomeEvent[];
   billInstances: BillInstance[];
+  carryoverBills: CarryoverBill[];
   windows: PaycheckWindow[];
   /** Kept so the month page can keep passing summaries. The paycheck rail is not mounted. */
   paycheckSummaries: PaycheckWindowSummary[];
@@ -74,8 +77,10 @@ export function MonthWorkspace({
           <h2 className="text-lg font-medium">Income</h2>
           <AddIncomeButton monthId={monthId} monthKey={monthKey} />
         </div>
-        <IncomeList events={incomeEvents} monthKey={monthKey} />
+        <IncomeList events={incomeEvents} monthKey={monthKey} windows={windows} />
       </section>
+
+      <CarryoverLedger bills={carryoverBills} viewMonthKey={monthKey} />
 
       <BillTableByWindow
         windows={windows}

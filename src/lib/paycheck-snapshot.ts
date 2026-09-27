@@ -23,6 +23,10 @@ import { buildPaycheckGroups } from "@/lib/paycheck-windows";
  * is received or an actual amount is present, otherwise the expected amount.
  * Projected discretionary = that recognized income − effective amounts of bills
  * that are not skipped.
+ *
+ * Carryover bills stay owned by their original month. They join needs-funding
+ * and pending clearance for the current month's operational plan, and they are
+ * left out of that month's projection totals.
  */
 
 export interface IncomeForPlanning {
@@ -239,16 +243,27 @@ function dueBeforeBoundary(dueDate: string | Date | null, boundaryDate: string):
 
 export function buildPaycheckPlanningSnapshot(input: {
   income: IncomeForPlanning[];
+  /** Bills owned by the month on screen. These alone drive month projection. */
   bills: BillForPlanning[];
+  /**
+   * Unresolved scheduled/pending bills owned by earlier months.
+   * Operational planning only: needs funding and pending clearance.
+   */
+  carryoverBills?: BillForPlanning[];
   availableBalance: number | null;
   today?: Date;
 }): MonthPlanningView {
   const today = input.today ?? new Date();
   const nextIncome = findNextIncomeGroup(input.income, today);
+  const seenIds = new Set(input.bills.map((bill) => bill.id));
+  const operationalBills = [
+    ...input.bills,
+    ...(input.carryoverBills ?? []).filter((bill) => !seenIds.has(bill.id)),
+  ];
 
   const needsFunding: PlanningBillLine[] = [];
   if (nextIncome) {
-    for (const bill of input.bills) {
+    for (const bill of operationalBills) {
       if (!dueBeforeBoundary(bill.dueDate, nextIncome.boundaryDate)) continue;
       const amount = uninitiatedObligationBeforePayday(bill);
       if (amount === 0) continue;
@@ -263,7 +278,7 @@ export function buildPaycheckPlanningSnapshot(input: {
   }
 
   const pendingClearance: PlanningBillLine[] = [];
-  for (const bill of input.bills) {
+  for (const bill of operationalBills) {
     if (bill.status !== "pending") continue;
     pendingClearance.push({
       id: bill.id,

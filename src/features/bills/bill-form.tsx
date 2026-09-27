@@ -236,6 +236,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
             <Input id="paymentUrl" type="url" {...form.register("paymentUrl")} placeholder="https://..." />
           </div>
 
+          {windows.length > 0 ? (
           <div className="space-y-2">
             <Label>Assign to paycheck</Label>
             <Select
@@ -266,6 +267,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
               </SelectContent>
             </Select>
           </div>
+          ) : null}
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notes</Label>

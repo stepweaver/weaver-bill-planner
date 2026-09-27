@@ -145,6 +145,30 @@ export function buildPaycheckWindows(
   return windows;
 }
 
+/**
+ * Paycheck-period color for each income event, matching the bill row borders.
+ * Events merged into one period (same day, or within two days) share that color.
+ */
+export function colorKeysByIncomeEventId(
+  incomeEvents: IncomeEventForWindow[],
+  windows: PaycheckWindow[]
+): Map<number, ColorKey> {
+  const groups = buildPaycheckGroups(incomeEvents);
+  const map = new Map<number, ColorKey>();
+  for (const group of groups) {
+    const anchorId = group.events[0]?.id;
+    if (anchorId == null) continue;
+    const window = windows.find(
+      (w) => w.incomeEventId === anchorId && w.key.startsWith("income-")
+    );
+    if (!window) continue;
+    for (const event of group.events) {
+      map.set(event.id, window.colorKey);
+    }
+  }
+  return map;
+}
+
 export interface BillForAssignment {
   dueDate: string | null;
   assignedIncomeEventId?: number | null;

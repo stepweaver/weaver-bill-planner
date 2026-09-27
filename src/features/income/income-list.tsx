@@ -1,6 +1,10 @@
 "use client";
 
 import { IncomeRow } from "./income-row";
+import {
+  colorKeysByIncomeEventId,
+  type PaycheckWindow,
+} from "@/lib/paycheck-windows";
 
 type IncomeEvent = {
   id: number;
@@ -15,10 +19,14 @@ type IncomeEvent = {
 export function IncomeList({
   events,
   monthKey,
+  windows = [],
 }: {
   events: IncomeEvent[];
   monthKey: string;
+  windows?: PaycheckWindow[];
 }) {
+  const colorByEventId = colorKeysByIncomeEventId(events, windows);
+
   return (
     <div className="min-w-0 rounded border">
       {events.length === 0 ? (
@@ -28,7 +36,13 @@ export function IncomeList({
       ) : (
         <ul className="divide-y divide-border text-sm">
           {events.map((ev) => (
-            <IncomeRow key={ev.id} event={ev} monthKey={monthKey} as="list" />
+            <IncomeRow
+              key={ev.id}
+              event={ev}
+              monthKey={monthKey}
+              as="list"
+              colorKey={colorByEventId.get(ev.id)}
+            />
           ))}
         </ul>
       )}

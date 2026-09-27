@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { billDueDateSchema, billInstanceSchema, billQuickStatusSchema } from "@/lib/validations/bill";
 import { resolveAmountPaidForStatus } from "@/lib/bill-utils";
+import { calendarMonthKey } from "@/lib/paycheck-snapshot";
 import { recomputeAutoAssignmentsForMonth } from "@/lib/recompute-auto-assignments";
 import { getDefaultLedgerId, getMonthByIdAndLedger } from "@/features/months/actions";
 
@@ -20,6 +21,15 @@ function toBool(v: unknown): boolean {
 }
 
 const BILL_UPDATE_DENIED = "That bill could not be updated.";
+
+/** Refresh the bill's own month, and the current month when that bill is carryover there. */
+function revalidateBillViews(monthKey: string) {
+  revalidatePath(`/months/${monthKey}`, "page");
+  const liveKey = calendarMonthKey();
+  if (liveKey !== monthKey) {
+    revalidatePath(`/months/${liveKey}`, "page");
+  }
+}
 
 async function authorizeBill(id: number, monthId: number, monthKey: string) {
   const ledgerId = await getDefaultLedgerId();
@@ -148,7 +158,7 @@ export async function updateBill(
   if (!d.manualAssignment) {
     await recomputeAutoAssignmentsForMonth(monthId, monthKey);
   }
-  revalidatePath(`/months/${monthKey}`, "page");
+  revalidateBillViews(monthKey);
   return { success: true };
 }
 
@@ -173,7 +183,7 @@ export async function updateBillDueDate(
   if (!auth.bill.manualAssignment) {
     await recomputeAutoAssignmentsForMonth(monthId, monthKey);
   }
-  revalidatePath(`/months/${monthKey}`, "page");
+  revalidateBillViews(monthKey);
   return { success: true as const };
 }
 
@@ -202,7 +212,7 @@ export async function updateBillPaymentState(
       updatedAt: new Date(),
     })
     .where(eq(billInstances.id, id));
-  revalidatePath(`/months/${monthKey}`, "page");
+  revalidateBillViews(monthKey);
   return { success: true as const };
 }
 
@@ -214,7 +224,7 @@ export async function deleteBill(id: number, monthKey: string): Promise<{ succes
   const month = await getMonthByIdAndLedger(bill.monthId, ledgerId);
   if (!month) return { error: "Forbidden" };
   await db.delete(billInstances).where(eq(billInstances.id, id));
-  revalidatePath(`/months/${monthKey}`, "page");
+  revalidateBillViews(monthKey);
   return { success: true };
 }
 

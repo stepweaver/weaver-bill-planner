@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { format } from "date-fns";
 import {
   Sheet,
   SheetContent,
@@ -18,6 +19,7 @@ import { updateBillDueDate, updateBillPaymentState } from "./actions";
 import { useRouter } from "next/navigation";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 import { getEffectivePlannedAmount, isBillPaid, isBillOverdue } from "@/lib/bill-utils";
+import { parseLocalIsoDate } from "@/lib/month-dates";
 import { cn } from "@/lib/utils";
 import { paycheckBadgeClass, paycheckRowBorderClass } from "@/lib/paycheck-window-styles";
 import { Calendar, ExternalLink } from "lucide-react";
@@ -39,6 +41,7 @@ type Bill = {
   assignedGroupKey: string | null;
   manualAssignment: boolean | null;
   templateId: number | null;
+  isRecurring?: boolean | null;
   updatedAt?: Date | string | null;
 };
 
@@ -72,6 +75,15 @@ function formatCompactDueDate(iso: string, monthKey: string): string {
   return `${month}/${day}/${year.slice(2)}`;
 }
 
+/** Prior-month rows need the month name. Add the year when it is not the viewed year. */
+function formatPriorMonthDueDate(iso: string, viewMonthKey: string): string {
+  const date = parseLocalIsoDate(iso.slice(0, 10));
+  if (Number.isNaN(date.getTime())) return iso;
+  const viewYear = Number(viewMonthKey.slice(0, 4));
+  if (date.getFullYear() === viewYear) return format(date, "MMM d");
+  return format(date, "MMM d, yyyy");
+}
+
 const rowActionClassName =
   "inline-flex h-8 shrink-0 items-center justify-center rounded-md border px-2.5 text-sm font-medium touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
@@ -81,12 +93,16 @@ function DueDateControl({
   dueDate,
   monthId,
   monthKey,
+  labelMonthKey,
+  dueDateStyle = "compact",
 }: {
   billId: number;
   billName: string;
   dueDate: string | null;
   monthId: number;
   monthKey: string;
+  labelMonthKey?: string;
+  dueDateStyle?: "compact" | "prior-month";
 }) {
   const router = useRouter();
   const requestId = useRef(0);
@@ -122,7 +138,12 @@ function DueDateControl({
     }
   }
 
-  const label = value ? formatCompactDueDate(value, monthKey) : "Set";
+  const labelKey = labelMonthKey ?? monthKey;
+  const label = value
+    ? dueDateStyle === "prior-month"
+      ? formatPriorMonthDueDate(value, labelKey)
+      : formatCompactDueDate(value, labelKey)
+    : "Set";
 
   return (
     <div
@@ -226,6 +247,9 @@ export function BillRow({
   as = "ledger",
   highlightWindowKey = null,
   anchor = true,
+  dueDateStyle = "compact",
+  labelMonthKey,
+  showAssignment = true,
 }: {
   bill: Bill;
   monthId: number;
@@ -236,6 +260,12 @@ export function BillRow({
   highlightWindowKey?: string | null;
   /** False when a second layout of the same bill is also mounted, so the anchor id stays unique. */
   anchor?: boolean;
+  /** Prior-month carryover shows "Aug 18" instead of an in-month MM/DD. */
+  dueDateStyle?: "compact" | "prior-month";
+  /** Year used when formatting a prior-month date. Mutations still use monthKey. */
+  labelMonthKey?: string;
+  /** Carryover rows are not assigned to this month's paychecks. */
+  showAssignment?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -335,6 +365,8 @@ export function BillRow({
       dueDate={bill.dueDate}
       monthId={monthId}
       monthKey={monthKey}
+      labelMonthKey={labelMonthKey}
+      dueDateStyle={dueDateStyle}
     />
   );
 
@@ -368,7 +400,7 @@ export function BillRow({
             assignedGroupKey: bill.assignedGroupKey,
             manualAssignment: bill.manualAssignment ?? false,
             templateId: bill.templateId,
-            isRecurring: true,
+            isRecurring: bill.isRecurring ?? true,
           }}
           onSuccess={() => {
             setOpen(false);
@@ -399,7 +431,9 @@ export function BillRow({
         <td className="px-3 py-2.5 align-middle whitespace-nowrap text-base font-medium tabular-nums">
           {formatMoney(effective)}
         </td>
-        <td className="overflow-hidden px-3 py-2.5 align-middle">{fundingBadge}</td>
+        <td className="overflow-hidden px-3 py-2.5 align-middle">
+          {showAssignment ? fundingBadge : null}
+        </td>
         <td className="px-3 py-2.5 align-middle whitespace-nowrap">
           <div className="flex items-center gap-2">
             {statusEl}
@@ -432,7 +466,7 @@ export function BillRow({
           </div>
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              {fundingBadge}
+              {showAssignment ? fundingBadge : null}
               {statusEl}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">

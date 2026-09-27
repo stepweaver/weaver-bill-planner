@@ -14,6 +14,8 @@ import { deleteIncome } from "./actions";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { paycheckRowBorderClass } from "@/lib/paycheck-window-styles";
+import type { ColorKey } from "@/lib/paycheck-windows";
 
 type Event = {
   id: number;
@@ -56,10 +58,13 @@ export function IncomeRow({
   event,
   monthKey,
   as = "table",
+  colorKey,
 }: {
   event: Event;
   monthKey: string;
   as?: "table" | "list";
+  /** Same paycheck-period accent used on the bills that period covers. */
+  colorKey?: ColorKey | null;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -113,6 +118,7 @@ export function IncomeRow({
     </>
   );
 
+  const periodBorder = colorKey ? paycheckRowBorderClass(colorKey) : undefined;
   const receivedAmount = event.status === "received" ? event.actualAmount : null;
   const displayAmount = receivedAmount != null ? formatMoney(receivedAmount) : "—";
   const diff = formatDifference(event.expectedAmount, event.actualAmount);
@@ -120,7 +126,7 @@ export function IncomeRow({
 
   if (as === "list") {
     return (
-      <li className="border-b border-border last:border-b-0">
+      <li className={cn("border-b border-border last:border-b-0", periodBorder)}>
         <div className="space-y-2 px-3 py-3">
           <div className="min-w-0 overflow-hidden">
             <span className="block min-w-0 truncate text-base font-medium">{event.name}</span>
@@ -151,7 +157,7 @@ export function IncomeRow({
 
   return (
     <tr className="border-b">
-      <td className="px-2 py-1 truncate max-w-[90px]">{event.name}</td>
+      <td className={cn("px-2 py-1 truncate max-w-[90px]", periodBorder)}>{event.name}</td>
       <td className="px-2 py-1 w-24 tabular-nums">{formatMMDD(event.expectedDate)}</td>
       <td className="px-2 py-1 text-right w-20 tabular-nums">{displayAmount}</td>
       <td className="px-2 py-1 text-right w-20">
