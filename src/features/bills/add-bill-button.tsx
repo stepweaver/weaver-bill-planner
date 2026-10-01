@@ -22,21 +22,29 @@ export function AddBillButton({
   windows: PaycheckWindow[];
 }) {
   const [open, setOpen] = useState(false);
+  const [recurring, setRecurring] = useState(true);
   const router = useRouter();
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setRecurring(true);
+      }}
+    >
       <SheetTrigger className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-transparent bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/80">
-        Add bill
+        Add
       </SheetTrigger>
       <SheetContent layout="drawer" className={billEditorSheetClassName}>
         <SheetHeader className={billEditorHeaderClassName} style={billEditorHeaderStyle}>
-          <SheetTitle>Add bill</SheetTitle>
+          <SheetTitle>{recurring ? "Add bill" : "Add expense"}</SheetTitle>
         </SheetHeader>
         <BillForm
           monthId={monthId}
           monthKey={monthKey}
           windows={windows}
+          onKindChange={setRecurring}
           onSuccess={() => {
             setOpen(false);
             router.refresh();

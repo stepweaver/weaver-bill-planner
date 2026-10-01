@@ -292,7 +292,12 @@ export function BillRow({
   showAssignment?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [editingRecurring, setEditingRecurring] = useState(bill.isRecurring !== false);
   const router = useRouter();
+
+  useEffect(() => {
+    setEditingRecurring(bill.isRecurring !== false);
+  }, [bill.isRecurring]);
 
   const effective = getEffectivePlannedAmount(bill.plannedAmount, bill.invoiceAmount);
   /** In-flight payment (sent, not cleared) — keep separate from settled paid for visuals. */
@@ -339,25 +344,37 @@ export function BillRow({
       ? "text-emerald-600 dark:text-emerald-400"
       : "";
 
-  const nameCell = bill.paymentUrl ? (
-    <a
-      href={bill.paymentUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={cn(
-        "inline-flex min-w-0 items-center gap-1 truncate underline hover:no-underline font-medium",
-        pendingVisual || settledPaid ? nameClass : "text-primary",
-        settledPaid && "hover:text-emerald-500 dark:hover:text-emerald-300",
-        pendingVisual && "hover:text-amber-600 dark:hover:text-amber-200"
+  const expenseBadge =
+    bill.isRecurring === false ? (
+      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        Expense
+      </span>
+    ) : null;
+
+  const nameCell = (
+    <div className="flex min-w-0 items-center gap-2">
+      {bill.paymentUrl ? (
+        <a
+          href={bill.paymentUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "inline-flex min-w-0 items-center gap-1 truncate underline hover:no-underline font-medium",
+            pendingVisual || settledPaid ? nameClass : "text-primary",
+            settledPaid && "hover:text-emerald-500 dark:hover:text-emerald-300",
+            pendingVisual && "hover:text-amber-600 dark:hover:text-amber-200"
+          )}
+        >
+          <span className="truncate">{bill.name}</span>
+          <ExternalLink className="size-3.5 shrink-0 opacity-70" aria-hidden />
+        </a>
+      ) : (
+        <span className={cn("block min-w-0 truncate font-medium", nameClass || undefined)}>
+          {bill.name}
+        </span>
       )}
-    >
-      <span className="truncate">{bill.name}</span>
-      <ExternalLink className="size-3.5 shrink-0 opacity-70" aria-hidden />
-    </a>
-  ) : (
-    <span className={cn("block min-w-0 truncate font-medium", nameClass || undefined)}>
-      {bill.name}
-    </span>
+      {expenseBadge}
+    </div>
   );
 
   const statusEl = (
@@ -404,12 +421,13 @@ export function BillRow({
       </SheetTrigger>
       <SheetContent layout="drawer" className={billEditorSheetClassName}>
         <SheetHeader className={billEditorHeaderClassName} style={billEditorHeaderStyle}>
-          <SheetTitle>Edit bill</SheetTitle>
+          <SheetTitle>{editingRecurring ? "Edit bill" : "Edit expense"}</SheetTitle>
         </SheetHeader>
         <BillForm
           monthId={monthId}
           monthKey={monthKey}
           windows={windows}
+          onKindChange={setEditingRecurring}
           initial={{
             id: bill.id,
             name: bill.name,

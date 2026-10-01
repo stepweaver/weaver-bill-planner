@@ -36,6 +36,7 @@ type BillInstance = {
   assignedGroupKey: string | null;
   manualAssignment: boolean | null;
   templateId: number | null;
+  isRecurring?: boolean | null;
   updatedAt?: Date | string | null;
 };
 

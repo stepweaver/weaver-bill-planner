@@ -47,6 +47,11 @@ function BillLines({ lines }: { lines: PlanningBillLine[] }) {
               {line.dueDate ? (
                 <span className="text-muted-foreground">{formatShortDate(line.dueDate)} · </span>
               ) : null}
+              {line.status ? (
+                <span className="text-muted-foreground">
+                  {line.status === "pending" ? "Pending" : "Due"} ·{" "}
+                </span>
+              ) : null}
               {formatMoney(line.amount)}
             </span>
           </a>
@@ -59,14 +64,10 @@ function BillLines({ lines }: { lines: PlanningBillLine[] }) {
 function AvailableBalanceControl({
   monthKey,
   balance,
-  spendable,
-  pendingTotal,
   updatedAt,
 }: {
   monthKey: string;
   balance: number | null;
-  spendable: number | null;
-  pendingTotal: number;
   updatedAt: string | null;
 }) {
   const router = useRouter();
@@ -177,37 +178,21 @@ function AvailableBalanceControl({
           onClick={startEdit}
           className={cn(
             "block text-left text-xl font-semibold tabular-nums tracking-tight",
-            (spendable ?? 0) < 0 && "text-rose-700 dark:text-rose-300"
+            (balance ?? 0) < 0 && "text-rose-700 dark:text-rose-300"
           )}
         >
-          {formatMoney(spendable ?? 0)}
+          {formatMoney(balance ?? 0)}
         </button>
       )}
       <p className="text-[11px] text-muted-foreground">
         {showEditor ? (
-          pendingTotal > 0 ? (
-            "Enter what the bank shows. Pending payments are subtracted from it."
-          ) : (
-            "What your bank shows as available to spend."
-          )
-        ) : pendingTotal > 0 && balance != null ? (
-          <>
-            {formatMoney(balance)} at the bank. {formatMoney(pendingTotal)} pending is already spent.
-            {updatedAt ? (
-              <>
-                {" "}
-                <time dateTime={updatedAt} suppressHydrationWarning>
-                  Updated {format(new Date(updatedAt), "MMM d, h:mm a")}
-                </time>
-              </>
-            ) : null}
-          </>
+          "What your bank shows right now."
         ) : updatedAt ? (
           <time dateTime={updatedAt} suppressHydrationWarning>
             Updated {format(new Date(updatedAt), "MMM d, h:mm a")}
           </time>
         ) : (
-          "What your bank shows as available to spend."
+          "What your bank shows right now."
         )}
       </p>
     </div>
@@ -229,98 +214,52 @@ export function PlanningSnapshot({
   availableBalanceUpdatedAt: string | null;
   planning: MonthPlanningView;
 }) {
-  const next = planning.nextIncome;
-  const safe = planning.safeUntilNextIncome;
+  const left = planning.leftAfterBills;
+  const short = left != null && left < 0;
+  const covered = left != null && left >= 0;
 
   return (
-    <section aria-label="Planning snapshot" className="divide-y divide-border border-y border-border">
+    <section aria-label="Planning snapshot" className="border-y border-border">
       <div className="space-y-3 py-3">
         {operational ? (
           <>
             <AvailableBalanceControl
               monthKey={monthKey}
               balance={availableBalance}
-              spendable={planning.availableAfterPending}
-              pendingTotal={planning.pendingClearanceTotal}
               updatedAt={availableBalanceUpdatedAt}
             />
 
-            {next ? (
-              <>
-                <div>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                    <SnapshotLabel>Before next paycheck</SnapshotLabel>
-                    <p className="text-right text-sm tabular-nums">
-                      <span className="font-semibold">{formatMoney(planning.needsFundingTotal)}</span>
-                      <span className="text-muted-foreground"> needs funding</span>
-                    </p>
-                  </div>
-                  {planning.needsFunding.length > 0 ? (
-                    <BillLines lines={planning.needsFunding} />
-                  ) : (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Nothing left to start before the next paycheck.
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                    <SnapshotLabel>Safe until next paycheck</SnapshotLabel>
-                    {safe != null ? (
-                      <p
-                        className={cn(
-                          "text-right text-xl font-semibold tabular-nums tracking-tight",
-                          safe < 0 && "text-rose-700 dark:text-rose-300"
-                        )}
-                      >
-                        {formatMoney(safe)}
-                      </p>
-                    ) : (
-                      <p className="text-right text-xs text-muted-foreground">Enter the available balance</p>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Available balance, after pending, minus bills still needing payment before the next income.
-                  </p>
-                </div>
-
-                <div>
-                  <SnapshotLabel>Next paycheck</SnapshotLabel>
-                  <p className="text-sm tabular-nums">
-                    <span className="font-medium">{next.names.join(" + ")}</span>
-                    <span className="text-muted-foreground">
-                      {" "}
-                      · {formatShortDate(next.date)} · {formatMoney(next.expectedAmount)}
-                    </span>
-                  </p>
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No income left in this month, so there is no safe-until figure.
-              </p>
-            )}
-
             <div>
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                <SnapshotLabel>Pending clearance</SnapshotLabel>
-                <p className="text-right text-sm tabular-nums">
-                  <span className="font-semibold">
-                    {planning.pendingClearance.length} · {formatMoney(planning.pendingClearanceTotal)}
-                  </span>
-                </p>
-              </div>
-              {planning.pendingClearance.length > 0 ? (
-                <>
-                  <BillLines lines={planning.pendingClearance} />
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Open a payment to mark it paid. This amount is already subtracted from the available balance.
+                <SnapshotLabel>Left after due and pending</SnapshotLabel>
+                {left != null ? (
+                  <p
+                    className={cn(
+                      "text-right text-xl font-semibold tabular-nums tracking-tight",
+                      short && "text-rose-700 dark:text-rose-300"
+                    )}
+                  >
+                    {formatMoney(left)}
                   </p>
-                </>
-              ) : (
-                <p className="mt-1 text-xs text-muted-foreground">No payments waiting to clear.</p>
-              )}
+                ) : (
+                  <p className="text-right text-xs text-muted-foreground">Enter the bank balance</p>
+                )}
+              </div>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {left == null
+                  ? `Due and pending bills total ${formatMoney(planning.stillToCoverTotal)}.`
+                  : planning.stillToCover.length === 0
+                    ? "Nothing is due or pending."
+                    : short
+                      ? `Short ${formatMoney(Math.abs(left))}. Float a bill to the next pay period.`
+                      : "Covered."}
+              </p>
+              {covered && planning.stillToCover.length > 0 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Bank balance minus {formatMoney(planning.stillToCoverTotal)} still due or pending.
+                </p>
+              ) : null}
+              {planning.stillToCover.length > 0 ? <BillLines lines={planning.stillToCover} /> : null}
             </div>
           </>
         ) : (
@@ -336,35 +275,6 @@ export function PlanningSnapshot({
             ) : null}
           </p>
         )}
-      </div>
-
-      <div className="space-y-1.5 py-3">
-        <SnapshotLabel>Month projection</SnapshotLabel>
-        <dl className="space-y-1 text-sm">
-          <div className="flex items-baseline justify-between gap-3">
-            <dt className="text-muted-foreground">Income still expected</dt>
-            <dd className="tabular-nums font-medium">{formatMoney(planning.incomeStillExpected)}</dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-3">
-            <dt className="text-muted-foreground">Bills still outstanding</dt>
-            <dd className="tabular-nums font-medium">{formatMoney(planning.billsStillOutstanding)}</dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-3">
-            <dt className="text-muted-foreground">Projected discretionary</dt>
-            <dd
-              className={cn(
-                "tabular-nums font-semibold",
-                planning.projectedDiscretionary < 0 && "text-rose-700 dark:text-rose-300"
-              )}
-            >
-              {formatMoney(planning.projectedDiscretionary)}
-            </dd>
-          </div>
-        </dl>
-        <p className="text-[11px] text-muted-foreground">
-          {formatMoney(planning.recognizedIncome)} known income − {formatMoney(planning.knownObligations)}{" "}
-          in bills. Each paycheck counts once.
-        </p>
       </div>
     </section>
   );

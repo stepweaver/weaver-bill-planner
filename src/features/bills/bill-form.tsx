@@ -52,9 +52,10 @@ type Props = {
   windows: PaycheckWindow[];
   initial?: Partial<BillInstanceFormData> & { id?: number };
   onSuccess?: () => void;
+  onKindChange?: (recurring: boolean) => void;
 };
 
-export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Props) {
+export function BillForm({ monthId, monthKey, windows, initial, onSuccess, onKindChange }: Props) {
   const [deleting, setDeleting] = useState(false);
   const isEdit = !!initial?.id;
   const form = useForm<BillInstanceFormData>({
@@ -117,7 +118,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
 
   async function handleDelete() {
     if (!initial?.id) return;
-    if (!confirm("Delete this bill?")) return;
+    if (!confirm(form.getValues("isRecurring") ? "Delete this bill?" : "Delete this expense?")) return;
     setDeleting(true);
     try {
       const r = await deleteBill(initial.id, monthKey);
@@ -133,6 +134,12 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
   }
 
   const busy = form.formState.isSubmitting || deleting;
+  const recurring = form.watch("isRecurring");
+
+  function setKind(next: boolean) {
+    form.setValue("isRecurring", next, { shouldDirty: true });
+    onKindChange?.(next);
+  }
 
   function fillAmountPaidFromDue() {
     const planned = coerceAmount(form.getValues("plannedAmount"));
@@ -155,6 +162,37 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
       >
         <div className="space-y-3">
           <div className="space-y-2">
+            <Label>Type</Label>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Type">
+              <Button
+                type="button"
+                variant={recurring ? "default" : "outline"}
+                className="h-11"
+                disabled={busy}
+                aria-pressed={recurring}
+                onClick={() => setKind(true)}
+              >
+                Bill
+              </Button>
+              <Button
+                type="button"
+                variant={recurring ? "outline" : "default"}
+                className="h-11"
+                disabled={busy}
+                aria-pressed={!recurring}
+                onClick={() => setKind(false)}
+              >
+                Expense
+              </Button>
+            </div>
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              {recurring
+                ? "Repeats when you roll the month forward."
+                : "One time. Stays in this month and is not copied forward."}
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
             <Input id="name" {...form.register("name")} placeholder="Rent" />
             {form.formState.errors.name && (
@@ -163,7 +201,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="dueDate">Due date</Label>
+            <Label htmlFor="dueDate">{recurring ? "Due date" : "Date"}</Label>
             <Input id="dueDate" type="date" {...form.register("dueDate")} />
           </div>
 
@@ -287,7 +325,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
       >
         <div className="flex items-center gap-2">
           <Button type="submit" disabled={busy} className="h-11 flex-1">
-            {isEdit ? "Update" : "Add"} bill
+            {isEdit ? "Update" : recurring ? "Add bill" : "Add expense"}
           </Button>
           {isEdit && initial?.id ? (
             <DropdownMenu>
@@ -301,7 +339,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess }: Pro
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 <DropdownMenuItem variant="destructive" disabled={deleting} onClick={handleDelete}>
-                  Delete bill
+                  {recurring ? "Delete bill" : "Delete expense"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

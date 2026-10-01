@@ -28,6 +28,7 @@ type BillInstance = {
   assignedGroupKey: string | null;
   manualAssignment: boolean | null;
   templateId: number | null;
+  isRecurring?: boolean | null;
   updatedAt?: Date | string | null;
 };
 
@@ -73,12 +74,12 @@ export function BillTableByWindow({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-medium">Bills</h2>
+        <h2 className="text-lg font-medium">Bills and expenses</h2>
         <AddBillButton monthId={monthId} monthKey={monthKey} windows={windows} />
       </div>
       {sorted.length === 0 ? (
         <p className="rounded border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
-          No bills.
+          No bills or expenses.
         </p>
       ) : (
         <>
@@ -103,7 +104,7 @@ export function BillTableByWindow({
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="w-24 text-sm text-muted-foreground">Due</TableHead>
-                    <TableHead className="text-sm text-muted-foreground">Bill</TableHead>
+                    <TableHead className="text-sm text-muted-foreground">Name</TableHead>
                     <TableHead className="w-28 text-sm text-muted-foreground">Amount</TableHead>
                     <TableHead className="w-40 text-sm text-muted-foreground">Paycheck</TableHead>
                     <TableHead className="w-44 text-sm text-muted-foreground">Status</TableHead>

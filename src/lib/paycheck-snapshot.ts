@@ -4,29 +4,16 @@ import { centsToDollars, toCents } from "@/lib/money";
 import { buildPaycheckGroups } from "@/lib/paycheck-windows";
 
 /**
- * Paycheck-to-paycheck planning snapshot.
+ * Planning snapshot for the current month.
  *
- * Available bank balance is the number the user typed from their bank.
- * A pending payment is already spent, so it is subtracted from that balance.
- * What remains is what is still available.
+ * The figure that matters is the typed bank balance minus every bill that is
+ * still due (scheduled) or pending. A positive result covers those bills. A
+ * negative result is the shortfall: something has to wait for the next pay period.
  *
- * Safe until next income =
- *   available bank balance
- *   − pending payments
- *   − uninitiated obligations due strictly before the next paycheck group.
- *
- * Payday boundary: `buildPaycheckGroups` / `assignBillToWindow`. A bill due ON
- * the group's first date belongs to that paycheck (the pre-window end date is
- * exclusive), so it is not part of "needs funding before next paycheck."
- *
- * Month projection counts each income event once: actual amount when the event
- * is received or an actual amount is present, otherwise the expected amount.
- * Projected discretionary = that recognized income − effective amounts of bills
- * that are not skipped.
- *
- * Carryover bills stay owned by their original month. They join needs-funding
- * and pending clearance for the current month's operational plan, and they are
- * left out of that month's projection totals.
+ * Pending uses the amount already sent. Due uses the remainder still unpaid.
+ * Paid and skipped bills are out. Carryover bills stay owned by their original
+ * month and join this total on the current month, because they still have to
+ * be paid from today's balance.
  */
 
 export interface IncomeForPlanning {
@@ -53,6 +40,8 @@ export interface PlanningBillLine {
   name: string;
   dueDate: string | null;
   amount: number;
+  /** Present on still-to-cover lines. */
+  status?: "scheduled" | "pending";
 }
 
 export interface NextIncomeSnapshot {
@@ -73,6 +62,17 @@ export interface MonthPlanningView {
   needsFundingTotal: number;
   pendingClearance: PlanningBillLine[];
   pendingClearanceTotal: number;
+  /**
+   * Due and pending bills still to pay from today's balance, including carryover.
+   */
+  stillToCover: PlanningBillLine[];
+  stillToCoverTotal: number;
+  /**
+   * Typed bank balance minus `stillToCoverTotal`.
+   * Null when no available balance has been entered.
+   * Zero and negative values are real results. Negative means short.
+   */
+  leftAfterBills: number | null;
   /**
    * Typed bank balance minus pending payments.
    * Null when no available balance has been entered.
@@ -289,8 +289,28 @@ export function buildPaycheckPlanningSnapshot(input: {
   }
   pendingClearance.sort(compareLines);
 
+  const stillToCover: PlanningBillLine[] = [];
+  for (const bill of operationalBills) {
+    if (bill.status !== "scheduled" && bill.status !== "pending") continue;
+    const amount = outstandingBillAmount(bill);
+    if (amount === 0) continue;
+    stillToCover.push({
+      id: bill.id,
+      name: bill.name,
+      dueDate: isoDateOnly(bill.dueDate),
+      amount,
+      status: bill.status,
+    });
+  }
+  stillToCover.sort(compareLines);
+
   const needsFundingCents = needsFunding.reduce((sum, line) => sum + toCents(line.amount), 0);
   const pendingCents = pendingClearance.reduce((sum, line) => sum + toCents(line.amount), 0);
+  const stillToCoverCents = stillToCover.reduce((sum, line) => sum + toCents(line.amount), 0);
+  const leftAfterBills =
+    input.availableBalance == null
+      ? null
+      : dollarsFromCents(toCents(input.availableBalance) - stillToCoverCents);
   const availableAfterPending =
     input.availableBalance == null
       ? null
@@ -323,6 +343,9 @@ export function buildPaycheckPlanningSnapshot(input: {
     needsFundingTotal: dollarsFromCents(needsFundingCents),
     pendingClearance,
     pendingClearanceTotal: dollarsFromCents(pendingCents),
+    stillToCover,
+    stillToCoverTotal: dollarsFromCents(stillToCoverCents),
+    leftAfterBills,
     availableAfterPending,
     safeUntilNextIncome,
     incomeStillExpected: dollarsFromCents(stillExpectedCents),

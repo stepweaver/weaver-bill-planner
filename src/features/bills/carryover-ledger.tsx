@@ -32,6 +32,7 @@ export function CarryoverLedger({
             showAssignment={false}
             windows={[]}
             as="list"
+            anchor
           />
         ))}
       </ul>
