@@ -1,69 +1,49 @@
 #!/usr/bin/env bash
-# Run as root on Ubuntu/Debian: sudo bash deploy/install-notify.sh
+# Install the notification timer alongside the existing Ledger app.
+# Run as: sudo bash deploy/install-notify.sh
 set -Eeuo pipefail
 
-REPO_URL="https://github.com/stepweaver/weaver-bill-planner.git"
-APP_DIR="/opt/ledger"
-ENV_DIR="/etc/ledger"
-ENV_FILE="$ENV_DIR/notify.env"
+APP_DIR="/srv/apps/ledger"
 
 if [[ "$(id -u)" -ne 0 ]]; then
-  echo "Run this script with sudo." >&2
+  echo "Run with sudo." >&2
   exit 1
 fi
-for executable in git npm node systemctl runuser; do
-  command -v "$executable" >/dev/null || {
-    echo "Missing $executable. Install Git, Node.js 20+ and npm, then rerun." >&2
-    exit 1
-  }
-done
-node -e 'if (+process.versions.node.split(".")[0] < 20) process.exit(1)' || {
-  echo "Node.js 20 or newer is required." >&2
-  exit 1
-}
-
-if ! id ledger >/dev/null 2>&1; then
-  useradd --system --home-dir "$APP_DIR" --shell /usr/sbin/nologin ledger
-fi
-if [[ -e "$APP_DIR" && ! -d "$APP_DIR/.git" ]]; then
-  echo "$APP_DIR exists but is not a Git checkout. Resolve manually; no files changed." >&2
+if ! id weaver >/dev/null 2>&1; then
+  echo "The existing weaver account was not found." >&2
   exit 1
 fi
-if [[ ! -d "$APP_DIR/.git" ]]; then
-  git clone "$REPO_URL" "$APP_DIR"
-else
-  git -C "$APP_DIR" fetch origin main
-  git -C "$APP_DIR" checkout main
-  git -C "$APP_DIR" pull --ff-only origin main
+if [[ ! -f "$APP_DIR/package.json" || ! -f "$APP_DIR/src/jobs/notify.ts" ]]; then
+  echo "Ledger notification sources are missing from $APP_DIR." >&2
+  echo "Update the existing checkout using your normal deployment process first." >&2
+  exit 1
 fi
-chown -R ledger:ledger "$APP_DIR"
-runuser -u ledger -- bash -c 'cd /opt/ledger && npm ci --no-audit --no-fund'
-
-install -d -m 750 -o root -g ledger "$ENV_DIR"
-if [[ ! -e "$ENV_FILE" ]]; then
-  cat > "$ENV_FILE" <<'EOF'
-# Set to the same production Neon database used by the deployed web app.
-DATABASE_URL=
-# Use the exact same VAPID keys as the web app, not a new pair.
-VAPID_PUBLIC_KEY=
-VAPID_PRIVATE_KEY=
-VAPID_SUBJECT=mailto:you@example.com
-EOF
+if ! grep -q '"notify"' "$APP_DIR/package.json"; then
+  echo "The npm notify script was not found." >&2
+  exit 1
 fi
-chown root:ledger "$ENV_FILE"
-chmod 640 "$ENV_FILE"
+if [[ ! -f "$APP_DIR/deploy/ledger-notify.service" || ! -f "$APP_DIR/deploy/ledger-notify.timer" ]]; then
+  echo "Service/timer files are not present. Update your deployed checkout." >&2
+  exit 1
+fi
 
 install -m 644 "$APP_DIR/deploy/ledger-notify.service" /etc/systemd/system/ledger-notify.service
 install -m 644 "$APP_DIR/deploy/ledger-notify.timer" /etc/systemd/system/ledger-notify.timer
 systemctl daemon-reload
 
+echo "Installed notification service and timer alongside the existing Ledger deployment."
+echo "The timer is NOT enabled or started."
+echo "The existing ledger.service was not changed."
 echo
-echo "Installed the Ledger notification app and systemd units."
-echo "NEXT: sudo nano $ENV_FILE"
-echo "Fill DATABASE_URL and the matching VAPID values, then save."
-echo "Then run:"
-echo "  sudo systemctl start ledger-notify.service  # real notifications; do only when ready"
+echo "NEXT: check the existing /srv/apps/ledger/.env.local or create"
+echo "      /etc/ledger/notify.env (optional override)."
+echo "Both must use the same production DATABASE_URL and VAPID key pair."
+echo "The optional override must be readable by weaver and secured to 0600"
+echo "if owned by weaver, or 0640 with a group accessible to weaver."
+echo
+echo "Dry run as weaver (uses app's .env.local):"
+echo "  sudo -u weaver bash -c 'cd /srv/apps/ledger && npm run notify:dry-run'"
+echo
+echo "Then, only when ready:"
 echo "  sudo systemctl enable --now ledger-notify.timer"
-echo "  systemctl list-timers ledger-notify.timer"
-echo "For a safe dry run first:"
-echo "  sudo runuser -u ledger -- bash -c 'cd /opt/ledger && set -a && source /etc/ledger/notify.env && set +a && npm run notify:dry-run'"
+echo "  systemctl list-timers --all ledger-notify.timer"
