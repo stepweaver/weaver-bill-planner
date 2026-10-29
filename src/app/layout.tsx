@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ChunkLoadRecovery } from "@/components/chunk-load-recovery";
+import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
@@ -57,6 +58,7 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <ChunkLoadRecovery />
+          <RegisterServiceWorker />
           {children}
           <Toaster />
         </ThemeProvider>

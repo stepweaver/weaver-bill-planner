@@ -1,0 +1,11 @@
+[Unit]
+Description=Run λledger notifications at 9:00 AM Eastern
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Timezone=America/Indiana/Indianapolis
+Persistent=true
+Unit=ledger-notify.service
+
+[Install]
+WantedBy=timers.target

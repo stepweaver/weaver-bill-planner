@@ -5,6 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "λledger",
     short_name: "λledger",
     description: "Monthly household ledger for scheduling bills against paychecks.",
+    id: "/",
     start_url: "/",
     scope: "/",
     display: "standalone",

@@ -21,18 +21,21 @@ function findProjectRoot(start) {
   return null;
 }
 
+const configDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot =
-  findProjectRoot(process.cwd()) ??
-  findProjectRoot(path.dirname(fileURLToPath(import.meta.url)));
+  findProjectRoot(process.cwd()) ?? findProjectRoot(configDir) ?? configDir;
 
 /**
- * `base` keeps Tailwind scanning this app. Without it, a parent lockfile makes
- * Next treat the folder above this repo as the project root, `@import "tailwindcss"`
- * fails to resolve, and the page ships with no utilities.
- * Webpack only accepts PostCSS plugins as package names, so this stays a string tuple.
+ * `base` keeps Tailwind scanning this app.
+ * The pin plugin runs first and points `from` at src/app/globals.css when
+ * Turbopack supplies a path outside this repo. Webpack accepts that plugin
+ * only as a resolvable path, so it is not an inline function.
  */
 const config = {
-  plugins: [["@tailwindcss/postcss", { base: projectRoot }]],
+  plugins: [
+    path.join(projectRoot, "postcss", "pin-stylesheet.cjs"),
+    ["@tailwindcss/postcss", { base: projectRoot }],
+  ],
 };
 
 export default config;

@@ -137,3 +137,47 @@ export const billInstancesRelations = relations(billInstances, ({ one }) => ({
   template: one(billTemplates),
   assignedIncomeEvent: one(incomeEvents),
 }));
+
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    ledgerId: integer("ledger_id")
+      .notNull()
+      .references(() => ledgers.id),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    expirationTime: timestamp("expiration_time"),
+    userAgent: text("user_agent"),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => [uniqueIndex("push_subscriptions_endpoint").on(t.endpoint)]
+);
+
+export const notificationDeliveries = pgTable(
+  "notification_deliveries",
+  {
+    id: serial("id").primaryKey(),
+    ledgerId: integer("ledger_id")
+      .notNull()
+      .references(() => ledgers.id),
+    subscriptionId: integer("subscription_id").references(() => pushSubscriptions.id, {
+      onDelete: "set null",
+    }),
+    dedupeKey: text("dedupe_key").notNull(),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    targetPath: text("target_path").notNull(),
+    status: text("status").notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+    sentAt: timestamp("sent_at"),
+  },
+  (t) => [uniqueIndex("notification_deliveries_dedupe_subscription").on(t.dedupeKey, t.subscriptionId)]
+);

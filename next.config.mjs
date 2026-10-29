@@ -24,7 +24,7 @@ const securityHeaders = [
       "img-src 'self' data: blob:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-inline'",
-      "connect-src 'self'",
+      "connect-src 'self' https://fcm.googleapis.com https://updates.push.services.mozilla.com https://web.push.apple.com https://*.push.apple.com",
       "upgrade-insecure-requests",
     ].join("; "),
   },
@@ -35,6 +35,9 @@ const nextConfig = {
   // it as outputFileTracingRoot / turbopack.root and resolve CSS imports like
   // `tailwindcss` from there—where node_modules does not exist.
   outputFileTracingRoot: projectRoot,
+  turbopack: {
+    root: projectRoot,
+  },
   // Turbopack production builds have been emitting HTML that points at a CSS
   // chunk the server never has. The browser then refuses text/plain 404s and
   // the page renders unstyled. Inline the stylesheet so a missing chunk cannot

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { safeCallbackPath } from "@/lib/callback-path";
 
 const schema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -21,7 +22,7 @@ type FormData = z.infer<typeof schema>;
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/months";
+  const callbackUrl = safeCallbackPath(searchParams.get("callbackUrl"));
   const [isLoading, setIsLoading] = useState(false);
 
   const {
