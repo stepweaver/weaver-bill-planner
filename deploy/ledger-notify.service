@@ -5,13 +5,12 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=ledger
-Group=ledger
-WorkingDirectory=/opt/ledger
-EnvironmentFile=/etc/ledger/notify.env
+User=weaver
+WorkingDirectory=/srv/apps/ledger
+# Optional overrides. The job also loads .env.local in the app directory.
+EnvironmentFile=-/etc/ledger/notify.env
 ExecStart=/usr/bin/env npm run notify
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/ledger
+ReadWritePaths=/srv/apps/ledger
