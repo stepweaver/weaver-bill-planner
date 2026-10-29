@@ -19,6 +19,7 @@ import { recomputeAutoAssignmentsForMonth } from "@/lib/recompute-auto-assignmen
 import { getSessionForServer } from "@/lib/auth-server";
 import { labelForMonthKey, shiftIsoDateToMonth } from "@/lib/month-dates";
 import { numericToNumber, parseAvailableBalanceInput } from "@/lib/money";
+import { ledgerTodayIso } from "@/lib/ledger-time";
 import {
   buildPaycheckPlanningSnapshot,
   calendarMonthKey,
@@ -154,8 +155,16 @@ export type CarryoverBill = {
   templateId: number | null;
   isRecurring: boolean | null;
   updatedAt: Date | string | null;
+  floatTargetDate: string | null;
+  floatedAt: string | null;
   ownerMonthId: number;
   ownerMonthKey: string;
+};
+
+export type PaydayEventRow = {
+  name: string;
+  expectedDate: string;
+  status: string;
 };
 
 export async function getMonthWithData(monthKey: string) {
@@ -163,6 +172,7 @@ export async function getMonthWithData(monthKey: string) {
   const month = await getMonthByKey(monthKey);
   if (!month) return null;
   const today = new Date();
+  const todayIso = ledgerTodayIso(today);
   const operational = isCurrentCalendarMonth(monthKey, today);
   const income = await db
     .select()
@@ -244,6 +254,8 @@ export async function getMonthWithData(monthKey: string) {
       templateId: bill.templateId,
       isRecurring: bill.isRecurring,
       updatedAt: bill.updatedAt,
+      floatTargetDate: dateValueToIso(bill.floatTargetDate),
+      floatedAt: timestampToIso(bill.floatedAt),
       ownerMonthId: bill.monthId,
       ownerMonthKey,
     }))
@@ -264,6 +276,7 @@ export async function getMonthWithData(monthKey: string) {
     status: bill.status,
     assignedIncomeEventId: bill.assignedIncomeEventId,
     assignedGroupKey: bill.assignedGroupKey,
+    floatTargetDate: bill.floatTargetDate,
   }));
   const paycheckSummaries = buildPaycheckSummaries(
     windows,
@@ -306,6 +319,7 @@ export async function getMonthWithData(monthKey: string) {
       invoiceAmount: bill.invoiceAmount,
       amountPaid: bill.amountPaid,
       status: bill.status,
+      floatTargetDate: bill.floatTargetDate,
     })),
     carryoverBills: operational
       ? carryoverBills.map((bill) => ({
@@ -316,6 +330,7 @@ export async function getMonthWithData(monthKey: string) {
           invoiceAmount: bill.invoiceAmount,
           amountPaid: bill.amountPaid,
           status: bill.status,
+          floatTargetDate: bill.floatTargetDate,
         }))
       : [],
     // Historical and future months must not treat today's bank number as theirs.
@@ -337,8 +352,27 @@ export async function getMonthWithData(monthKey: string) {
     return Number.isNaN(date.getTime()) ? null : date.toISOString();
   })();
 
+  const paydayRows = await db
+    .select({
+      name: incomeEvents.name,
+      expectedDate: incomeEvents.expectedDate,
+      status: incomeEvents.status,
+    })
+    .from(incomeEvents)
+    .innerJoin(months, eq(incomeEvents.monthId, months.id))
+    .where(eq(months.ledgerId, month.ledgerId));
+  const paydayEvents: PaydayEventRow[] = paydayRows
+    .map((row) => ({
+      name: row.name,
+      expectedDate: dateValueToIso(row.expectedDate) ?? "",
+      status: row.status,
+    }))
+    .filter((row) => row.expectedDate.length > 0);
+
   return {
     month,
+    todayIso,
+    paydayEvents,
     incomeEvents: income,
     billInstances: billsWithWindow,
     carryoverBills: operational ? carryoverBills : [],
@@ -423,6 +457,12 @@ function dateValueToIso(value: string | Date | null | undefined): string | null 
   if (value instanceof Date) return format(value, "yyyy-MM-dd");
   const s = String(value).trim();
   return s ? s.slice(0, 10) : null;
+}
+
+function timestampToIso(value: Date | string | null | undefined): string | null {
+  if (value == null) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 /** Move an existing month to a different YYYY-MM, shifting bill and income dates. */

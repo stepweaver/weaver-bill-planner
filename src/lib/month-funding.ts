@@ -3,12 +3,14 @@ import {
   assignBillToWindow,
   type PaycheckWindow,
 } from "@/lib/paycheck-windows";
-import { getEffectivePlannedAmount, isBillPaid, isBillOverdue } from "@/lib/bill-utils";
+import { getEffectivePlannedAmount, isActivelyFloated, isBillPaid, isBillOverdue } from "@/lib/bill-utils";
+import { ledgerTodayIso } from "@/lib/ledger-time";
 import type { BillInstanceForMetrics } from "@/lib/month-metrics";
 
 export interface BillForFunding extends BillInstanceForMetrics {
   id: number;
   name: string;
+  floatTargetDate?: string | Date | null;
 }
 
 export function resolveBillWindowKey(
@@ -152,6 +154,7 @@ export function buildMonthAttention(
   carryoverBills: BillForFunding[] = []
 ): MonthAttention {
   const today = startOfDay(new Date());
+  const todayIso = ledgerTodayIso(today);
   const soonEnd = addDays(today, DUE_SOON_DAYS);
 
   const overdueIds: number[] = [];
@@ -163,6 +166,7 @@ export function buildMonthAttention(
   for (const bill of carryoverBills) {
     if (monthBillIds.has(bill.id) || overdueIds.includes(bill.id)) continue;
     if (bill.status !== "scheduled") continue;
+    if (isActivelyFloated(bill, todayIso)) continue;
     const effective = getEffectivePlannedAmount(bill.plannedAmount, bill.invoiceAmount);
     if (isBillPaid(bill.status, bill.amountPaid, effective)) continue;
     overdueIds.push(bill.id);
@@ -171,14 +175,16 @@ export function buildMonthAttention(
   for (const b of bills) {
     const effective = getEffectivePlannedAmount(b.plannedAmount, b.invoiceAmount);
     const paid = isBillPaid(b.status, b.amountPaid, effective);
+    const floated = isActivelyFloated(b, todayIso);
 
-    if (isBillOverdue(b.dueDate, b.status, b.amountPaid, effective)) {
+    if (!floated && isBillOverdue(b.dueDate, b.status, b.amountPaid, effective, todayIso)) {
       overdueIds.push(b.id);
     }
     if (
+      !floated &&
       !paid &&
       b.dueDate &&
-      !isBillOverdue(b.dueDate, b.status, b.amountPaid, effective)
+      !isBillOverdue(b.dueDate, b.status, b.amountPaid, effective, todayIso)
     ) {
       const due = startOfDay(parseISO(b.dueDate));
       if (due >= today && due <= soonEnd) {

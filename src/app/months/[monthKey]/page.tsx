@@ -17,6 +17,8 @@ export default async function MonthDetailPage({
 
   const {
     month,
+    todayIso,
+    paydayEvents,
     incomeEvents,
     billInstances,
     carryoverBills,
@@ -39,6 +41,8 @@ export default async function MonthDetailPage({
         paycheckSummaries={paycheckSummaries}
         attention={attention}
         planningSnapshot={planningSnapshot}
+        paydayEvents={paydayEvents}
+        todayIso={todayIso}
       />
     </AppShell>
   );

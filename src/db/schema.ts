@@ -101,6 +101,12 @@ export const billInstances = pgTable("bill_instances", {
   assignedGroupKey: text("assigned_group_key"),
   manualAssignment: boolean("manual_assignment").default(false),
   isRecurring: boolean("is_recurring").default(true),
+  /**
+   * Planning hold. The bill stays scheduled and unpaid.
+   * Null means it is not floated. The original due_date is never replaced by this.
+   */
+  floatTargetDate: date("float_target_date"),
+  floatedAt: timestamp("floated_at"),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

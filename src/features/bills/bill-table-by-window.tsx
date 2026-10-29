@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { BillRow } from "./bill-row";
 import { AddBillButton } from "./add-bill-button";
+import { BILL_GROUP_LABEL, billDisplayGroup, orderBillsForPlan, type BillDisplayGroup } from "@/lib/bill-utils";
 import {
   Table,
   TableBody,
@@ -30,17 +31,11 @@ type BillInstance = {
   templateId: number | null;
   isRecurring?: boolean | null;
   updatedAt?: Date | string | null;
+  floatTargetDate: string | Date | null;
+  floatedAt: string | Date | null;
+  ownerMonthId: number;
+  ownerMonthKey: string;
 };
-
-/** Due date ascending, then stable id tie-break (order does not change when status updates). */
-function sortBillsByDueDateThenId(bills: BillInstance[]): BillInstance[] {
-  return [...bills].sort((a, b) => {
-    const dateA = a.dueDate ?? "";
-    const dateB = b.dueDate ?? "";
-    if (dateA !== dateB) return dateA.localeCompare(dateB);
-    return a.id - b.id;
-  });
-}
 
 /** null until the client knows the viewport, so the first paint can render both layouts. */
 function useMdUp(): boolean | null {
@@ -55,21 +50,33 @@ function useMdUp(): boolean | null {
   return mdUp;
 }
 
+function GroupHeading({ group }: { group: BillDisplayGroup }) {
+  return (
+    <div className="bg-muted/40 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      {BILL_GROUP_LABEL[group]}
+    </div>
+  );
+}
+
 export function BillTableByWindow({
   windows,
   bills,
   monthId,
   monthKey,
+  todayIso,
+  nextPaydayDate,
 }: {
   windows: PaycheckWindow[];
   bills: BillInstance[];
   monthId: number;
   monthKey: string;
+  todayIso: string;
+  nextPaydayDate: string | null;
 }) {
   const mdUp = useMdUp();
   const showList = mdUp !== true;
   const showTable = mdUp !== false;
-  const sorted = sortBillsByDueDateThenId(bills);
+  const sorted = orderBillsForPlan(bills, todayIso);
 
   return (
     <div className="space-y-3">
@@ -85,17 +92,33 @@ export function BillTableByWindow({
         <>
           {showList ? (
             <ul className="rounded border text-sm md:hidden">
-              {sorted.map((b) => (
-                <BillRow
-                  key={b.id}
-                  bill={b}
-                  monthId={monthId}
-                  monthKey={monthKey}
-                  windows={windows}
-                  as="list"
-                  anchor={mdUp === false}
-                />
-              ))}
+              {sorted.map((b, index) => {
+                const group = billDisplayGroup(b, todayIso);
+                const previous = index > 0 ? billDisplayGroup(sorted[index - 1]!, todayIso) : null;
+                const fromAnotherMonth = b.ownerMonthKey !== monthKey;
+                return (
+                  <Fragment key={b.id}>
+                    {group !== previous ? (
+                      <li className="list-none border-b bg-muted/40">
+                        <GroupHeading group={group} />
+                      </li>
+                    ) : null}
+                    <BillRow
+                      bill={b}
+                      monthId={b.ownerMonthId}
+                      monthKey={b.ownerMonthKey}
+                      windows={fromAnotherMonth ? [] : windows}
+                      as="list"
+                      anchor={mdUp === false}
+                      dueDateStyle={fromAnotherMonth ? "prior-month" : "compact"}
+                      labelMonthKey={monthKey}
+                      showAssignment={!fromAnotherMonth}
+                      todayIso={todayIso}
+                      nextPaydayDate={nextPaydayDate}
+                    />
+                  </Fragment>
+                );
+              })}
             </ul>
           ) : null}
           {showTable ? (
@@ -107,22 +130,40 @@ export function BillTableByWindow({
                     <TableHead className="text-sm text-muted-foreground">Name</TableHead>
                     <TableHead className="w-28 text-sm text-muted-foreground">Amount</TableHead>
                     <TableHead className="w-40 text-sm text-muted-foreground">Paycheck</TableHead>
-                    <TableHead className="w-44 text-sm text-muted-foreground">Status</TableHead>
+                    <TableHead className="w-64 text-sm text-muted-foreground">Status</TableHead>
                     <TableHead className="w-20 text-sm text-muted-foreground">Edit</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sorted.map((b) => (
-                    <BillRow
-                      key={b.id}
-                      bill={b}
-                      monthId={monthId}
-                      monthKey={monthKey}
-                      windows={windows}
-                      as="table"
-                      anchor
-                    />
-                  ))}
+                  {sorted.map((b, index) => {
+                    const group = billDisplayGroup(b, todayIso);
+                    const previous = index > 0 ? billDisplayGroup(sorted[index - 1]!, todayIso) : null;
+                    const fromAnotherMonth = b.ownerMonthKey !== monthKey;
+                    return (
+                      <Fragment key={b.id}>
+                        {group !== previous ? (
+                          <TableRow className="hover:bg-transparent">
+                            <td colSpan={6} className="p-0">
+                              <GroupHeading group={group} />
+                            </td>
+                          </TableRow>
+                        ) : null}
+                        <BillRow
+                          bill={b}
+                          monthId={b.ownerMonthId}
+                          monthKey={b.ownerMonthKey}
+                          windows={fromAnotherMonth ? [] : windows}
+                          as="table"
+                          anchor
+                          dueDateStyle={fromAnotherMonth ? "prior-month" : "compact"}
+                          labelMonthKey={monthKey}
+                          showAssignment={!fromAnotherMonth}
+                          todayIso={todayIso}
+                          nextPaydayDate={nextPaydayDate}
+                        />
+                      </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

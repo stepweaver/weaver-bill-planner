@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateAvailableBankBalance } from "@/features/months/actions";
 import { parseLocalIsoDate } from "@/lib/month-dates";
-import type { MonthPlanningView, PlanningBillLine } from "@/lib/paycheck-snapshot";
+import type { PaydayEvent, PlanBill } from "@/lib/payment-plan";
+import { buildPaymentPlan } from "@/lib/payment-plan";
+import { centsToDollars } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 function formatMoney(amount: number) {
@@ -18,6 +20,10 @@ function formatMoney(amount: number) {
     currency: "USD",
     minimumFractionDigits: 2,
   }).format(amount);
+}
+
+function formatCents(cents: number) {
+  return formatMoney(centsToDollars(cents));
 }
 
 function formatShortDate(isoDate: string) {
@@ -32,32 +38,46 @@ function SnapshotLabel({ children }: { children: string }) {
   );
 }
 
-function BillLines({ lines }: { lines: PlanningBillLine[] }) {
-  if (lines.length === 0) return null;
+function PlanCheckRow({
+  id,
+  name,
+  dueDate,
+  amountCents,
+  checked,
+  disabled,
+  label,
+  onCheckedChange,
+}: {
+  id: number;
+  name: string;
+  dueDate: string | null;
+  amountCents: number;
+  checked: boolean;
+  disabled?: boolean;
+  label: string;
+  onCheckedChange?: (checked: boolean) => void;
+}) {
   return (
-    <ul className="mt-1 space-y-0.5">
-      {lines.map((line) => (
-        <li key={line.id}>
-          <a
-            href={`#bill-row-${line.id}`}
-            className="flex min-h-11 min-w-0 items-center justify-between gap-3 text-sm hover:underline"
-          >
-            <span className="min-w-0 truncate">{line.name}</span>
-            <span className="shrink-0 tabular-nums">
-              {line.dueDate ? (
-                <span className="text-muted-foreground">{formatShortDate(line.dueDate)} · </span>
-              ) : null}
-              {line.status ? (
-                <span className="text-muted-foreground">
-                  {line.status === "pending" ? "Pending" : "Due"} ·{" "}
-                </span>
-              ) : null}
-              {formatMoney(line.amount)}
-            </span>
-          </a>
-        </li>
-      ))}
-    </ul>
+    <li className="flex min-h-11 items-center gap-3">
+      <input
+        type="checkbox"
+        className="size-6 shrink-0 accent-primary"
+        checked={checked}
+        disabled={disabled}
+        aria-label={label}
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
+      />
+      <a
+        href={`#bill-row-${id}`}
+        className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3 text-sm hover:underline"
+      >
+        <span className="min-w-0 truncate">{name}</span>
+        <span className="shrink-0 tabular-nums">
+          {dueDate ? <span className="text-muted-foreground">{formatShortDate(dueDate)} · </span> : null}
+          {formatCents(amountCents)}
+        </span>
+      </a>
+    </li>
   );
 }
 
@@ -199,27 +219,70 @@ function AvailableBalanceControl({
   );
 }
 
+function planSignature(bills: PlanBill[], paydayEvents: PaydayEvent[], todayIso: string): string {
+  return JSON.stringify({
+    todayIso,
+    paydayEvents,
+    bills: bills.map((bill) => [
+      bill.id,
+      bill.status,
+      bill.dueDate,
+      bill.floatTargetDate,
+      bill.plannedAmount,
+      bill.invoiceAmount,
+      bill.amountPaid,
+    ]),
+  });
+}
+
 export function PlanningSnapshot({
   monthKey,
   operational,
   liveMonth,
   availableBalance,
   availableBalanceUpdatedAt,
-  planning,
+  bills,
+  paydayEvents,
+  todayIso,
 }: {
   monthKey: string;
   operational: boolean;
   liveMonth: { href: string; label: string } | null;
   availableBalance: number | null;
   availableBalanceUpdatedAt: string | null;
-  planning: MonthPlanningView;
+  bills: PlanBill[];
+  paydayEvents: PaydayEvent[];
+  todayIso: string;
 }) {
-  const left = planning.leftAfterBills;
+  const signature = useMemo(
+    () => planSignature(bills, paydayEvents, todayIso),
+    [bills, paydayEvents, todayIso]
+  );
+  const [seenSignature, setSeenSignature] = useState(signature);
+  const [picked, setPicked] = useState<number[] | null>(null);
+  if (seenSignature !== signature) {
+    setSeenSignature(signature);
+    setPicked(null);
+  }
+
+  const plan = buildPaymentPlan({
+    bills,
+    paydayEvents,
+    availableBalance,
+    todayIso,
+    ...(picked === null ? {} : { selectedIds: picked }),
+  });
+  const selected = new Set(plan.selectedIds);
+  const left = plan.leftAfterSelectedCents;
   const short = left != null && left < 0;
-  const covered = left != null && left >= 0;
+
+  function toggle(id: number, checked: boolean) {
+    const current = plan.selectedIds;
+    setPicked(checked ? [...current, id] : current.filter((selectedId) => selectedId !== id));
+  }
 
   return (
-    <section aria-label="Planning snapshot" className="border-y border-border">
+    <section aria-label="Bill calculator" className="border-y border-border">
       <div className="space-y-3 py-3">
         {operational ? (
           <>
@@ -229,9 +292,17 @@ export function PlanningSnapshot({
               updatedAt={availableBalanceUpdatedAt}
             />
 
-            <div>
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                <SnapshotLabel>Left after due and pending</SnapshotLabel>
+            <div className="space-y-1 text-sm">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-muted-foreground">Pending payments</span>
+                <span className="tabular-nums">{formatCents(plan.pendingCents)}</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-muted-foreground">Selected bills</span>
+                <span className="tabular-nums">{formatCents(plan.selectedCents)}</span>
+              </div>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 pt-1">
+                <SnapshotLabel>Left after selected bills</SnapshotLabel>
                 {left != null ? (
                   <p
                     className={cn(
@@ -239,28 +310,61 @@ export function PlanningSnapshot({
                       short && "text-rose-700 dark:text-rose-300"
                     )}
                   >
-                    {formatMoney(left)}
+                    {formatCents(left)}
                   </p>
                 ) : (
                   <p className="text-right text-xs text-muted-foreground">Enter the bank balance</p>
                 )}
               </div>
-              <p className="mt-0.5 text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {left == null
-                  ? `Due and pending bills total ${formatMoney(planning.stillToCoverTotal)}.`
-                  : planning.stillToCover.length === 0
-                    ? "Nothing is due or pending."
-                    : short
-                      ? `Short ${formatMoney(Math.abs(left))}. Float a bill to the next pay period.`
-                      : "Covered."}
+                  ? "Enter what the bank shows. Pending withdrawals are subtracted separately."
+                  : short
+                    ? `Short ${formatCents(Math.abs(left))}. Float a bill or uncheck one you will not pay yet.`
+                    : "Bank balance, minus pending withdrawals, minus the bills you checked."}
               </p>
-              {covered && planning.stillToCover.length > 0 ? (
-                <p className="text-[11px] text-muted-foreground">
-                  Bank balance minus {formatMoney(planning.stillToCoverTotal)} still due or pending.
+              {!plan.hasFuturePayday ? (
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  No future payday is recorded, so payday alerts cannot run. Add the next paycheck below.
                 </p>
               ) : null}
-              {planning.stillToCover.length > 0 ? <BillLines lines={planning.stillToCover} /> : null}
+              {plan.floatedCount > 0 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Floated bills stay out of this plan until their target date.
+                </p>
+              ) : null}
             </div>
+
+            {plan.pending.length > 0 || plan.selectable.length > 0 ? (
+              <ul>
+                {plan.pending.map((line) => (
+                  <PlanCheckRow
+                    key={line.id}
+                    id={line.id}
+                    name={line.name}
+                    dueDate={line.dueDate}
+                    amountCents={line.amountCents}
+                    checked
+                    disabled
+                    label={`${line.name} is pending and stays in the plan`}
+                  />
+                ))}
+                {plan.selectable.map((line) => (
+                  <PlanCheckRow
+                    key={line.id}
+                    id={line.id}
+                    name={line.name}
+                    dueDate={line.dueDate}
+                    amountCents={line.amountCents}
+                    checked={selected.has(line.id)}
+                    label={`Include ${line.name} in this plan`}
+                    onCheckedChange={(checked) => toggle(line.id, checked)}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">No scheduled bills are waiting to be paid.</p>
+            )}
           </>
         ) : (
           <p className="text-xs text-muted-foreground">

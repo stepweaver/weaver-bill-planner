@@ -4,8 +4,9 @@ import { db } from "@/db";
 import { billInstances } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { billDueDateSchema, billInstanceSchema, billQuickStatusSchema } from "@/lib/validations/bill";
-import { resolveAmountPaidForStatus } from "@/lib/bill-utils";
+import { billDueDateSchema, billInstanceSchema, billQuickStatusSchema, isoDateSchema } from "@/lib/validations/bill";
+import { clearsActiveFloat, resolveAmountPaidForStatus } from "@/lib/bill-utils";
+import { ledgerTodayIso } from "@/lib/ledger-time";
 import { calendarMonthKey } from "@/lib/paycheck-snapshot";
 import { recomputeAutoAssignmentsForMonth } from "@/lib/recompute-auto-assignments";
 import { getDefaultLedgerId, getMonthByIdAndLedger } from "@/features/months/actions";
@@ -152,6 +153,7 @@ export async function updateBill(
       assignedGroupKey: d.assignedGroupKey,
       manualAssignment: d.manualAssignment,
       isRecurring: d.isRecurring,
+      ...(clearsActiveFloat(d.status) ? { floatTargetDate: null, floatedAt: null } : {}),
       updatedAt: new Date(),
     })
     .where(eq(billInstances.id, id));
@@ -209,6 +211,8 @@ export async function updateBillPaymentState(
     .set({
       status: parsed.data,
       amountPaid,
+      floatTargetDate: null,
+      floatedAt: null,
       updatedAt: new Date(),
     })
     .where(eq(billInstances.id, id));
@@ -226,6 +230,56 @@ export async function deleteBill(id: number, monthKey: string): Promise<{ succes
   await db.delete(billInstances).where(eq(billInstances.id, id));
   revalidateBillViews(monthKey);
   return { success: true };
+}
+
+/**
+ * Hold a scheduled bill until a real future date.
+ * Does not change the original due date or the payment status.
+ * The caller supplies the date: the next recorded payday, or a date the user picked.
+ */
+export async function floatBill(
+  id: number,
+  monthId: number,
+  monthKey: string,
+  targetDate: string
+) {
+  const auth = await authorizeBill(id, monthId, monthKey);
+  if ("error" in auth) return { error: auth.error };
+  if (auth.bill.status !== "scheduled") {
+    return { error: "Only a scheduled bill can be floated." };
+  }
+  const parsed = isoDateSchema.safeParse(targetDate);
+  if (!parsed.success) return { error: "Enter a valid payment date." };
+  const todayIso = ledgerTodayIso();
+  if (parsed.data <= todayIso) {
+    return { error: "Choose a date after today." };
+  }
+  await db
+    .update(billInstances)
+    .set({
+      floatTargetDate: parsed.data,
+      floatedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(billInstances.id, id));
+  revalidateBillViews(monthKey);
+  return { success: true as const, floatTargetDate: parsed.data };
+}
+
+/** Drop the planning hold. The bill stays scheduled and keeps its original due date. */
+export async function undoFloatBill(id: number, monthId: number, monthKey: string) {
+  const auth = await authorizeBill(id, monthId, monthKey);
+  if ("error" in auth) return { error: auth.error };
+  await db
+    .update(billInstances)
+    .set({
+      floatTargetDate: null,
+      floatedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(billInstances.id, id));
+  revalidateBillViews(monthKey);
+  return { success: true as const };
 }
 
 /** Re-runs auto-assignment after income changes. Preserves manual overrides. */

@@ -1,5 +1,6 @@
 import { addDays, parseISO, startOfDay } from "date-fns";
-import { getEffectivePlannedAmount, isBillPaid, isBillOverdue } from "./bill-utils";
+import { getEffectivePlannedAmount, isActivelyFloated, isBillPaid, isBillOverdue } from "./bill-utils";
+import { ledgerTodayIso } from "./ledger-time";
 import {
   assignBillToWindow,
   buildPaycheckWindows,
@@ -22,6 +23,7 @@ export interface BillInstanceForMetrics {
   status: string;
   assignedIncomeEventId: number | null;
   assignedGroupKey: string | null;
+  floatTargetDate?: string | Date | null;
 }
 
 export interface MonthMetrics {
@@ -78,6 +80,7 @@ export function calculateMonthMetrics(
   let unassignedCount = 0;
 
   const today = startOfDay(new Date());
+  const todayIso = ledgerTodayIso(today);
   const soonEnd = addDays(today, DUE_SOON_DAYS);
 
   for (const b of billInstances) {
@@ -90,20 +93,24 @@ export function calculateMonthMetrics(
     if (paid) {
       paidExpenses += b.amountPaid ?? effective;
     }
+    const floated = isActivelyFloated(b, todayIso);
     if (
+      !floated &&
       isBillOverdue(
         b.dueDate,
         b.status,
         b.amountPaid,
-        effective
+        effective,
+        todayIso
       )
     ) {
       overdueCount++;
     }
     if (
+      !floated &&
       !paid &&
       b.dueDate &&
-      !isBillOverdue(b.dueDate, b.status, b.amountPaid, effective)
+      !isBillOverdue(b.dueDate, b.status, b.amountPaid, effective, todayIso)
     ) {
       const due = startOfDay(parseISO(String(b.dueDate).slice(0, 10)));
       if (due >= today && due <= soonEnd) {

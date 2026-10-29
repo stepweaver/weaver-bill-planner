@@ -59,7 +59,7 @@ export function MonthAttentionStrip({ attention }: { attention: MonthAttention }
   if (items.length === 0) {
     return (
       <p className="text-sm text-muted-foreground rounded-md border border-dashed px-3 py-2">
-        Nothing urgent — scan the bill list below or add income to define paycheck windows.
+        Nothing urgent. Scan the bill list above, or add income to define paycheck windows.
       </p>
     );
   }

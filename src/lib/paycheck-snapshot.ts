@@ -1,5 +1,5 @@
-import { format, startOfDay } from "date-fns";
-import { getEffectivePlannedAmount, isBillPaid } from "@/lib/bill-utils";
+import { getEffectivePlannedAmount, isActivelyFloated, isBillPaid, isoDateOnly } from "@/lib/bill-utils";
+import { ledgerMonthKey, ledgerTodayIso } from "@/lib/ledger-time";
 import { centsToDollars, toCents } from "@/lib/money";
 import { buildPaycheckGroups } from "@/lib/paycheck-windows";
 
@@ -33,6 +33,7 @@ export interface BillForPlanning {
   invoiceAmount: number | null;
   amountPaid: number | null;
   status: string;
+  floatTargetDate?: string | Date | null;
 }
 
 export interface PlanningBillLine {
@@ -92,22 +93,11 @@ export interface MonthPlanningView {
 }
 
 export function isCurrentCalendarMonth(monthKey: string, today: Date = new Date()): boolean {
-  return monthKey === format(startOfDay(today), "yyyy-MM");
+  return monthKey === ledgerMonthKey(today);
 }
 
 export function calendarMonthKey(today: Date = new Date()): string {
-  return format(startOfDay(today), "yyyy-MM");
-}
-
-function isoDateOnly(value: string | Date | null | undefined): string | null {
-  if (value == null) return null;
-  if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) return null;
-    return format(value, "yyyy-MM-dd");
-  }
-  const text = String(value).trim();
-  if (!text) return null;
-  return text.slice(0, 10);
+  return ledgerMonthKey(today);
 }
 
 function compareLines(a: PlanningBillLine, b: PlanningBillLine): number {
@@ -170,8 +160,12 @@ export function outstandingBillAmount(bill: BillForPlanning): number {
  * Pending is excluded here because that amount is already subtracted from
  * the available balance.
  */
-export function uninitiatedObligationBeforePayday(bill: BillForPlanning): number {
+export function uninitiatedObligationBeforePayday(
+  bill: BillForPlanning,
+  todayIso: string = ledgerTodayIso()
+): number {
   if (bill.status === "pending" || bill.status === "skipped") return 0;
+  if (isActivelyFloated(bill, todayIso)) return 0;
   const effective = getEffectivePlannedAmount(bill.plannedAmount, bill.invoiceAmount);
   if (isBillPaid(bill.status, bill.amountPaid, effective)) return 0;
   return dollarsFromCents(Math.max(0, toCents(effective) - toCents(bill.amountPaid ?? 0)));
@@ -207,7 +201,7 @@ export function findNextIncomeGroup(
         name: row.event.name,
       }))
   );
-  const todayIso = format(startOfDay(today), "yyyy-MM-dd");
+  const todayIso = ledgerTodayIso(today);
   const byId = new Map(income.map((event) => [event.id, event]));
 
   for (const group of groups) {
@@ -254,6 +248,7 @@ export function buildPaycheckPlanningSnapshot(input: {
   today?: Date;
 }): MonthPlanningView {
   const today = input.today ?? new Date();
+  const todayIso = ledgerTodayIso(today);
   const nextIncome = findNextIncomeGroup(input.income, today);
   const seenIds = new Set(input.bills.map((bill) => bill.id));
   const operationalBills = [
@@ -265,7 +260,7 @@ export function buildPaycheckPlanningSnapshot(input: {
   if (nextIncome) {
     for (const bill of operationalBills) {
       if (!dueBeforeBoundary(bill.dueDate, nextIncome.boundaryDate)) continue;
-      const amount = uninitiatedObligationBeforePayday(bill);
+      const amount = uninitiatedObligationBeforePayday(bill, todayIso);
       if (amount === 0) continue;
       needsFunding.push({
         id: bill.id,
@@ -292,6 +287,7 @@ export function buildPaycheckPlanningSnapshot(input: {
   const stillToCover: PlanningBillLine[] = [];
   for (const bill of operationalBills) {
     if (bill.status !== "scheduled" && bill.status !== "pending") continue;
+    if (bill.status === "scheduled" && isActivelyFloated(bill, todayIso)) continue;
     const amount = outstandingBillAmount(bill);
     if (amount === 0) continue;
     stillToCover.push({

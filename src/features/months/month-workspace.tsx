@@ -3,11 +3,12 @@
 import { MonthAttentionStrip } from "./month-attention-strip";
 import { PlanningSnapshot } from "./planning-snapshot";
 import { BillTableByWindow } from "@/features/bills/bill-table-by-window";
-import { CarryoverLedger } from "@/features/bills/carryover-ledger";
 import { AddIncomeButton } from "@/features/income/add-income-button";
 import { IncomeList } from "@/features/income/income-list";
-import type { CarryoverBill, PlanningSnapshotPayload } from "@/features/months/actions";
+import type { CarryoverBill, PaydayEventRow, PlanningSnapshotPayload } from "@/features/months/actions";
+import { mergeBillRecords, orderBillsForPlan } from "@/lib/bill-utils";
 import type { MonthAttention, PaycheckWindowSummary } from "@/lib/month-funding";
+import { nextFuturePayday, type PlanBill } from "@/lib/payment-plan";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 
 type IncomeEvent = {
@@ -38,7 +39,30 @@ type BillInstance = {
   templateId: number | null;
   isRecurring?: boolean | null;
   updatedAt?: Date | string | null;
+  floatTargetDate?: string | Date | null;
+  floatedAt?: string | Date | null;
 };
+
+export type WorkspaceBill = BillInstance & {
+  floatTargetDate: string | Date | null;
+  floatedAt: string | Date | null;
+  ownerMonthId: number;
+  ownerMonthKey: string;
+};
+
+function asWorkspaceBill(
+  bill: BillInstance,
+  ownerMonthId: number,
+  ownerMonthKey: string
+): WorkspaceBill {
+  return {
+    ...bill,
+    floatTargetDate: bill.floatTargetDate ?? null,
+    floatedAt: bill.floatedAt ?? null,
+    ownerMonthId,
+    ownerMonthKey,
+  };
+}
 
 export function MonthWorkspace({
   monthKey,
@@ -49,6 +73,8 @@ export function MonthWorkspace({
   windows,
   attention,
   planningSnapshot,
+  paydayEvents,
+  todayIso,
 }: {
   monthKey: string;
   monthId: number;
@@ -60,7 +86,39 @@ export function MonthWorkspace({
   paycheckSummaries: PaycheckWindowSummary[];
   attention: MonthAttention;
   planningSnapshot: PlanningSnapshotPayload;
+  paydayEvents: PaydayEventRow[];
+  todayIso: string;
 }) {
+  const unified = orderBillsForPlan(
+    mergeBillRecords(
+      billInstances.map((bill) => asWorkspaceBill(bill, monthId, monthKey)),
+      carryoverBills.map((bill) =>
+        asWorkspaceBill(
+          {
+            ...bill,
+            displayWindowKey: null,
+            displayIncomeEventId: null,
+          },
+          bill.ownerMonthId,
+          bill.ownerMonthKey
+        )
+      )
+    ),
+    todayIso
+  );
+  const planBills: PlanBill[] = unified.map((bill) => ({
+    id: bill.id,
+    name: bill.name,
+    dueDate: bill.dueDate,
+    plannedAmount: bill.plannedAmount,
+    invoiceAmount: bill.invoiceAmount,
+    amountPaid: bill.amountPaid,
+    status: bill.status,
+    floatTargetDate: bill.floatTargetDate,
+    ownerMonthKey: bill.ownerMonthKey,
+  }));
+  const nextPayday = nextFuturePayday(paydayEvents, todayIso);
+
   return (
     <div className="mt-4 space-y-5">
       <PlanningSnapshot
@@ -69,9 +127,19 @@ export function MonthWorkspace({
         liveMonth={planningSnapshot.liveMonth}
         availableBalance={planningSnapshot.availableBalance}
         availableBalanceUpdatedAt={planningSnapshot.availableBalanceUpdatedAt}
-        planning={planningSnapshot.planning}
+        bills={planBills}
+        paydayEvents={paydayEvents}
+        todayIso={todayIso}
       />
-      <MonthAttentionStrip attention={attention} />
+
+      <BillTableByWindow
+        windows={windows}
+        bills={unified}
+        monthId={monthId}
+        monthKey={monthKey}
+        todayIso={todayIso}
+        nextPaydayDate={nextPayday?.date ?? null}
+      />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
@@ -81,14 +149,7 @@ export function MonthWorkspace({
         <IncomeList events={incomeEvents} monthKey={monthKey} windows={windows} />
       </section>
 
-      <CarryoverLedger bills={carryoverBills} viewMonthKey={monthKey} />
-
-      <BillTableByWindow
-        windows={windows}
-        bills={billInstances}
-        monthId={monthId}
-        monthKey={monthKey}
-      />
+      <MonthAttentionStrip attention={attention} />
     </div>
   );
 }

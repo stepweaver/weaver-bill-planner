@@ -15,10 +15,10 @@ import {
   billEditorHeaderStyle,
   billEditorSheetClassName,
 } from "./bill-form";
-import { updateBillDueDate, updateBillPaymentState } from "./actions";
+import { floatBill, undoFloatBill, updateBillDueDate, updateBillPaymentState } from "./actions";
 import { useRouter } from "next/navigation";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
-import { getEffectivePlannedAmount, isBillPaid, isBillOverdue } from "@/lib/bill-utils";
+import { getEffectivePlannedAmount, isActivelyFloated, isBillPaid, isBillOverdue, isoDateOnly } from "@/lib/bill-utils";
 import { parseLocalIsoDate } from "@/lib/month-dates";
 import { cn } from "@/lib/utils";
 import { paycheckBadgeClass, paycheckRowBorderClass } from "@/lib/paycheck-window-styles";
@@ -43,6 +43,8 @@ type Bill = {
   templateId: number | null;
   isRecurring?: boolean | null;
   updatedAt?: Date | string | null;
+  floatTargetDate?: string | Date | null;
+  floatedAt?: string | Date | null;
 };
 
 function formatMoney(n: number | null) {
@@ -54,7 +56,8 @@ function formatMoney(n: number | null) {
   }).format(n);
 }
 
-function statusLabel(status: string): string {
+function statusLabel(status: string, floated: boolean): string {
+  if (floated) return "Floated";
   if (status === "scheduled") return "Due";
   if (status === "pending") return "Pending";
   if (status === "paid") return "Paid";
@@ -85,7 +88,7 @@ function formatPriorMonthDueDate(iso: string, viewMonthKey: string): string {
 }
 
 const rowActionClassName =
-  "inline-flex h-8 shrink-0 items-center justify-center rounded-md border px-2.5 text-sm font-medium touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+  "inline-flex h-11 min-w-11 shrink-0 items-center justify-center rounded-md border px-3 text-sm font-medium touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
 function DueDateControl({
   billId,
@@ -148,7 +151,7 @@ function DueDateControl({
   return (
     <div
       className={cn(
-        "relative inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1.5 text-sm tabular-nums text-muted-foreground",
+        "relative inline-flex h-11 shrink-0 items-center gap-1 rounded-md px-1.5 text-sm tabular-nums text-muted-foreground",
         "hover:bg-muted has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
         saving && "opacity-50"
       )}
@@ -263,6 +266,143 @@ function PaymentStateButton({
   );
 }
 
+function FloatControl({
+  billId,
+  billName,
+  status,
+  floatTargetDate,
+  monthId,
+  monthKey,
+  todayIso,
+  nextPaydayDate,
+}: {
+  billId: number;
+  billName: string;
+  status: string;
+  floatTargetDate: string | Date | null;
+  monthId: number;
+  monthKey: string;
+  todayIso: string;
+  nextPaydayDate: string | null;
+}) {
+  const router = useRouter();
+  const dateRef = useRef<HTMLInputElement>(null);
+  const [saving, setSaving] = useState(false);
+  const floated = isActivelyFloated({ status, floatTargetDate }, todayIso);
+  if (status !== "scheduled") return null;
+
+  async function run(action: () => Promise<{ error?: string; success?: true }>) {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const result = await action();
+      if ("error" in result && result.error) {
+        toast.error(result.error);
+        return;
+      }
+      router.refresh();
+    } catch {
+      toast.error("Couldn't update the float.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (floated) {
+    const target = isoDateOnly(floatTargetDate);
+    return (
+      <button
+        type="button"
+        aria-label={target ? `Undo float for ${billName}, targeted ${target}` : `Undo float for ${billName}`}
+        aria-busy={saving}
+        disabled={saving}
+        onClick={() => void run(() => undoFloatBill(billId, monthId, monthKey))}
+        className={cn(
+          rowActionClassName,
+          "border-sky-600/50 bg-sky-500/10 text-sky-900 hover:bg-sky-500/20 dark:text-sky-100"
+        )}
+      >
+        Undo
+      </button>
+    );
+  }
+
+  if (nextPaydayDate) {
+    return (
+      <button
+        type="button"
+        aria-label={`Float ${billName} to ${nextPaydayDate}`}
+        aria-busy={saving}
+        disabled={saving}
+        onClick={() => void run(() => floatBill(billId, monthId, monthKey, nextPaydayDate))}
+        className={cn(rowActionClassName, "border-input bg-background hover:bg-muted")}
+      >
+        Float
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        rowActionClassName,
+        "relative border-input bg-background",
+        saving && "opacity-50"
+      )}
+    >
+      <span>Float</span>
+      <input
+        ref={dateRef}
+        type="text"
+        inputMode="none"
+        readOnly
+        value=""
+        aria-label={`Choose a float date for ${billName}`}
+        disabled={saving}
+        onPointerDown={(event) => {
+          const input = event.currentTarget;
+          if (input.disabled || input.type === "date") return;
+          input.readOnly = false;
+          input.type = "date";
+        }}
+        onClick={(event) => {
+          const input = event.currentTarget;
+          if (input.disabled) return;
+          if (input.type !== "date") {
+            input.readOnly = false;
+            input.type = "date";
+          }
+          try {
+            input.showPicker();
+          } catch {
+            input.focus();
+          }
+        }}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (!next) return;
+          void run(() => floatBill(billId, monthId, monthKey, next));
+        }}
+        className={cn(
+          "absolute inset-0 z-10 cursor-pointer opacity-0",
+          "touch-manipulation disabled:cursor-wait",
+          "[&::-webkit-calendar-picker-indicator]:cursor-pointer",
+          "pointer-fine:[&::-webkit-datetime-edit]:pointer-events-none",
+          "pointer-fine:[&::-webkit-datetime-edit-fields-wrapper]:pointer-events-none",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:absolute",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:inset-0",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:m-0",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:h-full",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:w-full",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:cursor-pointer",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:bg-transparent",
+          "pointer-fine:[&::-webkit-calendar-picker-indicator]:opacity-0"
+        )}
+      />
+    </div>
+  );
+}
+
 export function BillRow({
   bill,
   monthId,
@@ -274,6 +414,8 @@ export function BillRow({
   dueDateStyle = "compact",
   labelMonthKey,
   showAssignment = true,
+  todayIso,
+  nextPaydayDate = null,
 }: {
   bill: Bill;
   monthId: number;
@@ -290,20 +432,30 @@ export function BillRow({
   labelMonthKey?: string;
   /** Carryover rows are not assigned to this month's paychecks. */
   showAssignment?: boolean;
+  todayIso: string;
+  nextPaydayDate?: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [editingRecurring, setEditingRecurring] = useState(bill.isRecurring !== false);
+  const recurring = bill.isRecurring !== false;
+  const [editingRecurring, setEditingRecurring] = useState(recurring);
+  const [seenRecurring, setSeenRecurring] = useState(recurring);
+  if (seenRecurring !== recurring) {
+    setSeenRecurring(recurring);
+    setEditingRecurring(recurring);
+  }
   const router = useRouter();
-
-  useEffect(() => {
-    setEditingRecurring(bill.isRecurring !== false);
-  }, [bill.isRecurring]);
 
   const effective = getEffectivePlannedAmount(bill.plannedAmount, bill.invoiceAmount);
   /** In-flight payment (sent, not cleared) — keep separate from settled paid for visuals. */
   const pendingVisual = bill.status === "pending";
+  const floated = isActivelyFloated(
+    { status: bill.status, floatTargetDate: bill.floatTargetDate ?? null },
+    todayIso
+  );
   const settledPaid = isBillPaid(bill.status, bill.amountPaid, effective) && !pendingVisual;
-  const overdue = isBillOverdue(bill.dueDate, bill.status, bill.amountPaid, effective);
+  const overdue =
+    !floated && isBillOverdue(bill.dueDate, bill.status, bill.amountPaid, effective, todayIso);
+  const floatTarget = isoDateOnly(bill.floatTargetDate ?? null);
 
   const win = bill.displayWindowKey
     ? windows.find((w) => w.key === bill.displayWindowKey)
@@ -326,23 +478,27 @@ export function BillRow({
     </span>
   );
 
-  const rowTint = pendingVisual
-    ? "bg-amber-500/[0.09]"
-    : settledPaid
-      ? "bg-green-500/[0.06]"
-      : overdue
-        ? "bg-rose-500/[0.06]"
-        : "";
+  const rowTint = floated
+    ? "bg-sky-500/[0.08]"
+    : pendingVisual
+      ? "bg-amber-500/[0.09]"
+      : settledPaid
+        ? "bg-green-500/[0.06]"
+        : overdue
+          ? "bg-rose-500/[0.06]"
+          : "";
   const filteredHighlight =
     highlightWindowKey != null && bill.displayWindowKey === highlightWindowKey
       ? "ring-1 ring-primary/40"
       : "";
 
-  const nameClass = pendingVisual
-    ? "text-amber-700 dark:text-amber-300"
-    : settledPaid
-      ? "text-emerald-600 dark:text-emerald-400"
-      : "";
+  const nameClass = floated
+    ? "text-sky-800 dark:text-sky-200"
+    : pendingVisual
+      ? "text-amber-700 dark:text-amber-300"
+      : settledPaid
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "";
 
   const expenseBadge =
     bill.isRecurring === false ? (
@@ -381,13 +537,32 @@ export function BillRow({
     <span
       className={cn(
         "text-sm font-medium",
+        floated && "text-sky-800 dark:text-sky-200",
         pendingVisual && "text-amber-700 dark:text-amber-300",
         settledPaid && "text-emerald-700 dark:text-emerald-400",
-        !pendingVisual && !settledPaid && "text-foreground"
+        !floated && !pendingVisual && !settledPaid && "text-foreground"
       )}
     >
-      {statusLabel(bill.status)}
+      {statusLabel(bill.status, floated)}
+      {floated && floatTarget ? (
+        <span className="ml-1 font-normal text-muted-foreground">
+          {format(parseLocalIsoDate(floatTarget), "MMM d")}
+        </span>
+      ) : null}
     </span>
+  );
+
+  const floatControl = (
+    <FloatControl
+      billId={bill.id}
+      billName={bill.name}
+      status={bill.status}
+      floatTargetDate={bill.floatTargetDate ?? null}
+      monthId={monthId}
+      monthKey={monthKey}
+      todayIso={todayIso}
+      nextPaydayDate={nextPaydayDate}
+    />
   );
 
   const quickPay = (
@@ -477,9 +652,10 @@ export function BillRow({
           {showAssignment ? fundingBadge : null}
         </td>
         <td className="px-3 py-2.5 align-middle whitespace-nowrap">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {statusEl}
             {quickPay}
+            {floatControl}
           </div>
         </td>
         <td className="px-3 py-2.5 align-middle whitespace-nowrap">{fullEdit}</td>
@@ -513,6 +689,7 @@ export function BillRow({
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               {quickPay}
+              {floatControl}
               {fullEdit}
             </div>
           </div>
