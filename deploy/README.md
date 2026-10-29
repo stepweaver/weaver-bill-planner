@@ -1,89 +1,69 @@
-# λledger VPS notification deployment
+# λledger notification timer on the existing VPS
 
-These commands install only the background notification job. The website can remain hosted on Vercel. The job uses the same production Neon database and the exact same VAPID key pair as the website.
+This deployment already runs as user `weaver` in `/srv/apps/ledger`, through `ledger.service`. The separate `ledger-notify.service` runs a one-shot scheduled job from the **same source directory**. It does not restart or modify `ledger.service`, create another user, or clone the repository.
 
-## 1. Prepare
-
-On your Ubuntu VPS, ensure Node.js 20+ and npm and Git are available:
+## Verify existing app first
 
 ```bash
-node --version
-npm --version
-git --version
+whoami
+pwd
+sudo systemctl status ledger --no-pager
+node -v
+npm -v
+test -f src/jobs/notify.ts && echo "Notification source present"
+npm run | grep notify
 ```
 
-Do not create another VAPID pair just for the VPS. Obtain the production values from the deployed application's protected environment settings.
+If the notification source is missing, update the existing app checkout using your established deployment process. Do not replace it with a new clone or reinstall dependencies solely for this timer.
 
-Before enabling push, verify that `drizzle/0006_bill_float.sql` and `drizzle/0007_push_notifications.sql` have been applied to your production Neon database. Apply only missing migrations after reviewing them; do not run `db:push` against production as a shortcut.
+## Configure environment
 
-## 2. Install
+The job's `src/jobs/notify.ts` loads `/srv/apps/ledger/.env.local` from its working directory. Ensure the existing app configuration includes the production Neon `DATABASE_URL` and the **same** `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` as the web app. The service also supports an optional `/etc/ledger/notify.env` override; when present, protect it and ensure it is readable by user `weaver`. Never print secrets in a terminal screenshot or commit them.
 
-After the associated PR has been merged into main:
+Verify that the `drizzle/0006_bill_float.sql` and `drizzle/0007_push_notifications.sql` migrations are present in your database before testing. Do not blindly apply `db:push` in production.
+
+## Install timer definitions
+
+After merging this PR and deploying the updated source to `/srv/apps/ledger`:
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y git
-git clone https://github.com/stepweaver/weaver-bill-planner.git ~/weaver-bill-planner
-cd ~/weaver-bill-planner
+cd /srv/apps/ledger
 sudo bash deploy/install-notify.sh
+systemd-analyze verify /etc/systemd/system/ledger-notify.service /etc/systemd/system/ledger-notify.timer
+systemd-analyze calendar '*-*-* 09:00:00 America/Indiana/Indianapolis'
 ```
 
-If the repository is already cloned, just pull main first. The installer sets up `/opt/ledger` and `ledger` system user, runs `npm ci`, creates `/etc/ledger/notify.env` with limited access, and installs the systemd units. It **does not** start the timer.
+The installer only copies systemd units and reloads systemd. It does not start a notification job.
 
-## 3. Configure secrets
+## Dry run
 
 ```bash
-sudo nano /etc/ledger/notify.env
+cd /srv/apps/ledger
+sudo -u weaver bash -c 'cd /srv/apps/ledger && npm run notify:dry-run'
 ```
 
-Set the production values. For a database URL containing characters interpreted by the shell (for example `&`), quote the value with single quotes:
+Expect JSON with `dryRun: true`, candidate bills, payday events, and subscription count. No notifications are sent. Use Settings in the installed phone web app to enable notifications and send a test push.
 
-```ini
-DATABASE_URL='postgresql://...'
-VAPID_PUBLIC_KEY='...'
-VAPID_PRIVATE_KEY='...'
-VAPID_SUBJECT='mailto:you@example.com'
-```
-
-Do not paste the keys into GitHub or share them in screenshots. The `VAPID_SUBJECT` should be a real contact address.
-
-## 4. Dry run
-
-```bash
-sudo runuser -u ledger -- bash -c 'cd /opt/ledger && set -a && source /etc/ledger/notify.env && set +a && npm run notify:dry-run'
-```
-
-Expect a JSON report with today's date, due bills, payday status, subscription count, and `dryRun: true`. A successful dry run will not send pushes.
-
-On the deployed application, open **Settings → Notifications** and enable notifications on the phone. On an iPhone, install Ledger on the Home Screen and launch that installed icon before enabling push. Send a test from the web app.
-
-## 5. Enable the daily schedule
+## Activate
 
 ```bash
 sudo systemctl enable --now ledger-notify.timer
 systemctl list-timers --all ledger-notify.timer
-systemd-analyze calendar '*-*-* 09:00:00 America/Indiana/Indianapolis'
 ```
 
-This fires at 9 AM Indianapolis time, observing daylight-saving transitions. To run the actual job on demand:
+The timer is set for 9 AM Indianapolis time, including daylight-saving changes.
+
+To manually execute the real job when you intend to send any eligible reminders:
 
 ```bash
 sudo systemctl start ledger-notify.service
 sudo journalctl -u ledger-notify.service -n 100 --no-pager
 ```
 
-There will only be a push if the job finds actionable reminders and a valid subscribed device. Do not repeatedly run manual sends when testing notification delivery.
-
-## 6. Update or troubleshoot
+To stop notifications:
 
 ```bash
-sudo journalctl -u ledger-notify.service -f
-systemctl status ledger-notify.timer --no-pager
-sudo systemctl stop ledger-notify.timer
+sudo systemctl disable --now ledger-notify.timer
 ```
 
-For updates after new code is merged, run the installer again from an up-to-date source checkout; it performs a fast-forward-only update in `/opt/ledger` and keeps the protected environment file.
-
-The job is one-shot, not a persistent web server. It does not need an inbound firewall port. Delivery errors appear in the systemd journal and in Ledger Settings.
-
-Note: the current job sends reminders for scheduled bills due today, bills resurfacing from a float today, and recorded income events expected today. It does not send repeated overdue reminders on later dates.
+Notifications only occur for scheduled bills due today, floated bills resurfacing today, or today's expected payday. Already-overdue scheduled bills do not repeatedly notify each day. No incoming port is needed. 
