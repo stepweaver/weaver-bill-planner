@@ -5,6 +5,7 @@ import { PlanningSnapshot } from "./planning-snapshot";
 import { BillTableByWindow } from "@/features/bills/bill-table-by-window";
 import { AddIncomeButton } from "@/features/income/add-income-button";
 import { IncomeList } from "@/features/income/income-list";
+import { PaydayAcknowledgment } from "@/features/notifications/payday-acknowledgment";
 import type { CarryoverBill, PaydayEventRow, PlanningSnapshotPayload } from "@/features/months/actions";
 import { mergeBillRecords, orderBillsForPlan } from "@/lib/bill-utils";
 import type { MonthAttention, PaycheckWindowSummary } from "@/lib/month-funding";
@@ -75,6 +76,7 @@ export function MonthWorkspace({
   planningSnapshot,
   paydayEvents,
   todayIso,
+  paydayAcknowledged,
 }: {
   monthKey: string;
   monthId: number;
@@ -88,6 +90,7 @@ export function MonthWorkspace({
   planningSnapshot: PlanningSnapshotPayload;
   paydayEvents: PaydayEventRow[];
   todayIso: string;
+  paydayAcknowledged: boolean;
 }) {
   const unified = orderBillsForPlan(
     mergeBillRecords(
@@ -131,6 +134,13 @@ export function MonthWorkspace({
         paydayEvents={paydayEvents}
         todayIso={todayIso}
       />
+
+      {planningSnapshot.operational && paydayEvents.some((event) => event.expectedDate === todayIso) ? (
+        <section className="space-y-2 rounded-md border p-3">
+          <h2 className="text-base font-medium">Payday planning</h2>
+          <PaydayAcknowledgment acknowledged={paydayAcknowledged} />
+        </section>
+      ) : null}
 
       <BillTableByWindow
         windows={windows}
