@@ -8,6 +8,7 @@ import {
   deliveryClaim,
   evaluateReminders,
   isExpiredPushSubscription,
+  reminderSlotForHour,
   type ReminderBill,
   type ReminderIncome,
 } from "./reminders";
@@ -158,8 +159,7 @@ describe("delivery and navigation", () => {
   it("schedules the VPS job at 9:00 AM Indianapolis time", () => {
     const timer = readFileSync(new URL("../../deploy/ledger-notify.timer", import.meta.url), "utf8");
     const service = readFileSync(new URL("../../deploy/ledger-notify.service", import.meta.url), "utf8");
-    assert.match(timer, /OnCalendar=\*-\*-\* 09:00:00/);
-    assert.match(timer, /Timezone=America\/Indiana\/Indianapolis/);
+    assert.match(timer, /OnCalendar=\*-\*-\* 09,13,18:00:00 America\/Indiana\/Indianapolis/);
     assert.match(service, /npm run notify/);
     assert.equal(service.includes("curl"), false);
   });
@@ -174,5 +174,50 @@ describe("ledger timezone", () => {
     assert.equal(ledgerTodayIso(new Date("2026-11-01T03:30:00Z")), "2026-10-31");
     assert.equal(ledgerTodayIso(new Date("2026-11-01T04:30:00Z")), "2026-11-01");
     assert.equal(ledgerTodayIso(new Date("2026-11-01T06:30:00Z")), "2026-11-01");
+  });
+});
+
+describe("persistent reminder follow-ups", () => {
+  it("uses a different deduplication key for each scheduled check", () => {
+    assert.notEqual(dailyDedupeKey(TODAY, "morning"), dailyDedupeKey(TODAY, "afternoon"));
+    assert.notEqual(dailyDedupeKey(TODAY, "afternoon"), dailyDedupeKey(TODAY, "evening"));
+    assert.equal(reminderSlotForHour(9), "morning");
+    assert.equal(reminderSlotForHour(13), "afternoon");
+    assert.equal(reminderSlotForHour(18), "evening");
+  });
+
+  it("keeps reminding for yesterday's unresolved bill", () => {
+    const result = evaluateReminders({
+      todayIso: TODAY,
+      slot: "afternoon",
+      workspaceMonthKey: "2026-10",
+      bills: [bill({ id: 22, dueDate: "2026-10-27" })],
+      income: [],
+    });
+    assert.equal(result.kind, "overdue");
+    assert.deepEqual(result.overdueBillIds, [22]);
+  });
+
+  it("does not remind for handled or actively floated overdue bills", () => {
+    const result = plan([
+      bill({ id: 31, dueDate: "2026-10-20", status: "pending" }),
+      bill({ id: 32, dueDate: "2026-10-20", status: "paid" }),
+      bill({ id: 33, dueDate: "2026-10-20", floatTargetDate: "2026-11-06" }),
+    ]);
+    assert.equal(result.shouldNotify, false);
+  });
+
+  it("respects payday planning acknowledgement but leaves bill reminders active", () => {
+    const result = evaluateReminders({
+      todayIso: TODAY,
+      slot: "evening",
+      paydayAcknowledged: true,
+      workspaceMonthKey: "2026-10",
+      bills: [bill({ id: 44 })],
+      income: [income()],
+    });
+    assert.equal(result.kind, "due");
+    assert.deepEqual(result.paydayNames, []);
+    assert.deepEqual(result.dueBillIds, [44]);
   });
 });
