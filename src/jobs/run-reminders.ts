@@ -7,6 +7,7 @@ import {
   months,
   notificationDeliveries,
   pushSubscriptions,
+  paydayAcknowledgments,
 } from "../db/schema";
 import { LEDGER_TIME_ZONE, ledgerMonthKey, ledgerTodayIso } from "../lib/ledger-time";
 import {
@@ -129,6 +130,8 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
             eq(incomeEvents.status, "expected")
           )
         );
+      const [ack] = await db.select({ id: paydayAcknowledgments.id }).from(paydayAcknowledgments)
+        .where(and(eq(paydayAcknowledgments.ledgerId, ledger.id), eq(paydayAcknowledgments.paydayDate, todayIso))).limit(1);
       const subscriptions = await db
         .select()
         .from(pushSubscriptions)
@@ -136,6 +139,7 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
       const plan = evaluateReminders({
         todayIso,
         slot,
+        paydayAcknowledged: !!ack,
         workspaceMonthKey: workspace?.monthKey ?? null,
         bills: billRows,
         income: incomeRows,
