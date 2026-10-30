@@ -17,10 +17,12 @@ export interface ReminderIncome {
   status: string;
 }
 
-export type ReminderKind = "none" | "due" | "payday" | "resurface" | "combined";
+export type ReminderKind = "none" | "due" | "overdue" | "payday" | "resurface" | "combined";
+export type ReminderSlot = "morning" | "afternoon" | "evening";
 
 export interface ReminderPlan {
   todayIso: string;
+  slot: ReminderSlot;
   shouldNotify: boolean;
   kind: ReminderKind;
   title: string;
@@ -28,6 +30,7 @@ export interface ReminderPlan {
   targetPath: string;
   dedupeKey: string;
   dueBillIds: number[];
+  overdueBillIds: number[];
   resurfacedBillIds: number[];
   paydayNames: string[];
 }
@@ -40,10 +43,11 @@ const TITLE = "λledger";
  */
 export function reminderMessage(input: {
   due: boolean;
+  overdue: boolean;
   resurfaced: boolean;
   payday: boolean;
 }): { kind: ReminderKind; title: string; body: string } {
-  const billsReady = input.due || input.resurfaced;
+  const billsReady = input.due || input.overdue || input.resurfaced;
   if (input.payday && billsReady) {
     return {
       kind: "combined",
@@ -58,6 +62,7 @@ export function reminderMessage(input: {
       body: "A paycheck is scheduled today. Verify the deposit, then plan bills.",
     };
   }
+  if (input.overdue) return { kind: "overdue", title: TITLE, body: "Bills are overdue. Open λledger to pay or float them." };
   if (input.due) {
     return {
       kind: "due",
@@ -80,8 +85,12 @@ export function notificationTargetPath(monthKey: string | null | undefined): str
   return "/months";
 }
 
-export function dailyDedupeKey(todayIso: string): string {
-  return `daily:${todayIso}`;
+export function dailyDedupeKey(todayIso: string, slot: ReminderSlot = "morning"): string {
+  return `daily:${todayIso}:${slot}`;
+}
+
+export function reminderSlotForHour(hour: number): ReminderSlot {
+  return hour < 13 ? "morning" : hour < 18 ? "afternoon" : "evening";
 }
 
 /**
@@ -91,11 +100,14 @@ export function dailyDedupeKey(todayIso: string): string {
  */
 export function evaluateReminders(input: {
   todayIso: string;
+  slot?: ReminderSlot;
+  paydayAcknowledged?: boolean;
   workspaceMonthKey: string | null;
   bills: readonly ReminderBill[];
   income: readonly ReminderIncome[];
 }): ReminderPlan {
   const dueBillIds: number[] = [];
+  const overdueBillIds: number[] = [];
   const resurfacedBillIds: number[] = [];
   const seen = new Set<number>();
 
@@ -111,11 +123,13 @@ export function evaluateReminders(input: {
       continue;
     }
     if (target === input.todayIso) resurfacedBillIds.push(bill.id);
+    else if ((due && due < input.todayIso) || (target && target < input.todayIso)) overdueBillIds.push(bill.id);
   }
 
   const paydayNames: string[] = [];
   const seenIncome = new Set<number>();
   for (const event of input.income) {
+    if (input.paydayAcknowledged) break;
     if (seenIncome.has(event.id)) continue;
     seenIncome.add(event.id);
     if (event.status !== "expected") continue;
@@ -125,6 +139,7 @@ export function evaluateReminders(input: {
 
   const message = reminderMessage({
     due: dueBillIds.length > 0,
+    overdue: overdueBillIds.length > 0,
     resurfaced: resurfacedBillIds.length > 0,
     payday: paydayNames.length > 0,
   });
@@ -132,13 +147,15 @@ export function evaluateReminders(input: {
 
   return {
     todayIso: input.todayIso,
+    slot: input.slot ?? "morning",
     shouldNotify: message.kind !== "none",
     kind: message.kind,
     title: message.title,
     body: message.body,
     targetPath,
-    dedupeKey: dailyDedupeKey(input.todayIso),
+    dedupeKey: dailyDedupeKey(input.todayIso, input.slot ?? "morning"),
     dueBillIds,
+    overdueBillIds,
     resurfacedBillIds,
     paydayNames,
   };

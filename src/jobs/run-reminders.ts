@@ -7,11 +7,13 @@ import {
   months,
   notificationDeliveries,
   pushSubscriptions,
+  paydayAcknowledgments,
 } from "../db/schema";
 import { LEDGER_TIME_ZONE, ledgerMonthKey, ledgerTodayIso } from "../lib/ledger-time";
 import {
   MAX_DELIVERY_ATTEMPTS,
   evaluateReminders,
+  reminderSlotForHour,
   isExpiredPushSubscription,
   type ReminderPlan,
 } from "../lib/reminders";
@@ -83,6 +85,8 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
   const todayIso = ledgerTodayIso();
   const monthKey = ledgerMonthKey();
   try {
+    const localHour = Number(new Intl.DateTimeFormat("en-US", { timeZone: LEDGER_TIME_ZONE, hour: "2-digit", hourCycle: "h23" }).format(new Date()));
+    const slot = reminderSlotForHour(localHour);
     const ledgerRows = await db.select().from(ledgers).where(eq(ledgers.isDefault, true));
     const reports = [];
 
@@ -107,7 +111,7 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
           and(
             eq(months.ledgerId, ledger.id),
             eq(billInstances.status, "scheduled"),
-            or(eq(billInstances.dueDate, todayIso), eq(billInstances.floatTargetDate, todayIso))
+            or(sql`${billInstances.dueDate} <= ${todayIso}`, sql`${billInstances.floatTargetDate} <= ${todayIso}`)
           )
         );
       const incomeRows = await db
@@ -126,12 +130,16 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
             eq(incomeEvents.status, "expected")
           )
         );
+      const [ack] = await db.select({ id: paydayAcknowledgments.id }).from(paydayAcknowledgments)
+        .where(and(eq(paydayAcknowledgments.ledgerId, ledger.id), eq(paydayAcknowledgments.paydayDate, todayIso))).limit(1);
       const subscriptions = await db
         .select()
         .from(pushSubscriptions)
         .where(and(eq(pushSubscriptions.ledgerId, ledger.id), eq(pushSubscriptions.enabled, true)));
       const plan = evaluateReminders({
         todayIso,
+        slot,
+        paydayAcknowledged: !!ack,
         workspaceMonthKey: workspace?.monthKey ?? null,
         bills: billRows,
         income: incomeRows,
@@ -148,6 +156,7 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
         targetPath: plan.targetPath,
         dedupeKey: plan.dedupeKey,
         dueBillIds: plan.dueBillIds,
+        overdueBillIds: plan.overdueBillIds,
         resurfacedBillIds: plan.resurfacedBillIds,
         paydayNames: plan.paydayNames,
         subscriptions: subscriptions.length,

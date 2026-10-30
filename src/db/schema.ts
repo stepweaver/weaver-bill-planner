@@ -181,3 +181,16 @@ export const notificationDeliveries = pgTable(
   },
   (t) => [uniqueIndex("notification_deliveries_dedupe_subscription").on(t.dedupeKey, t.subscriptionId)]
 );
+
+
+/** Acknowledging payday planning does not imply income was received or bills were paid. */
+export const paydayAcknowledgments = pgTable(
+  "payday_acknowledgments",
+  {
+    id: serial("id").primaryKey(),
+    ledgerId: integer("ledger_id").notNull().references(() => ledgers.id),
+    paydayDate: date("payday_date").notNull(),
+    acknowledgedAt: timestamp("acknowledged_at").defaultNow(),
+  },
+  (t) => [uniqueIndex("payday_acknowledgments_ledger_date").on(t.ledgerId, t.paydayDate)]
+);

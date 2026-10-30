@@ -1,10 +1,10 @@
 [Unit]
-Description=Run λledger notifications at 9:00 AM Indiana/Eastern time
+Description=Run λledger reminders at 9 AM, 1 PM and 6 PM Indianapolis time
 
 [Timer]
 # Put the timezone in OnCalendar (Timezone= is not a systemd.timer setting).
 # This expression follows Eastern daylight-saving transitions.
-OnCalendar=*-*-* 09:00:00 America/Indiana/Indianapolis
+OnCalendar=*-*-* 09,13,18:00:00 America/Indiana/Indianapolis
 Persistent=true
 AccuracySec=1min
 Unit=ledger-notify.service
