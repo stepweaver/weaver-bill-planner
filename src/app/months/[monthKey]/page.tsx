@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { MonthHeader } from "@/features/months/month-header";
 import { MonthWorkspace } from "@/features/months/month-workspace";
 import { getMonthWithData } from "@/features/months/actions";
+import { isPaydayAcknowledged } from "@/features/notifications/payday-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export default async function MonthDetailPage({
   const { monthKey } = await params;
   const data = await getMonthWithData(monthKey);
   if (!data) notFound();
+  const paydayAcknowledged = await isPaydayAcknowledged();
 
   const {
     month,
@@ -43,6 +45,7 @@ export default async function MonthDetailPage({
         planningSnapshot={planningSnapshot}
         paydayEvents={paydayEvents}
         todayIso={todayIso}
+        paydayAcknowledged={paydayAcknowledged}
       />
     </AppShell>
   );
