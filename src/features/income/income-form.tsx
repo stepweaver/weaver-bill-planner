@@ -1,121 +1,91 @@
 "use client";
 
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { incomeEventSchema, type IncomeEventFormData } from "@/lib/validations/income";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { createIncome, updateIncome } from "./actions";
 import { toast } from "sonner";
+import { createIncome, updateIncome } from "./actions";
 
-type Props = {
-  monthId?: number;
-  monthKey: string;
-  initial?: Partial<IncomeEventFormData> & { id?: number };
-  onSuccess?: () => void;
+type Initial = {
+  id: number;
+  name: string;
+  expectedDate: string;
+  actualAmount: number | null;
+  status: string;
+  notes: string | null;
 };
 
-export function IncomeForm({ monthId, monthKey, initial, onSuccess }: Props) {
-  const isEdit = !!initial?.id;
-  const form = useForm<IncomeEventFormData>({
-    resolver: zodResolver(incomeEventSchema),
-    defaultValues: {
-      name: initial?.name ?? "",
-      expectedDate: initial?.expectedDate ?? "",
-      expectedAmount: initial?.expectedAmount ?? null,
-      actualAmount: initial?.actualAmount ?? null,
-      status: initial?.status ?? "expected",
-      notes: initial?.notes ?? null,
-    },
-  });
+export function IncomeForm({
+  monthId,
+  monthKey,
+  initial,
+  onSuccess,
+}: {
+  monthId?: number;
+  monthKey: string;
+  initial?: Initial;
+  onSuccess?: () => void;
+}) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState(initial?.name ?? "");
+  const [date, setDate] = useState(initial?.expectedDate ?? "");
+  const [amount, setAmount] = useState(initial?.actualAmount == null ? "" : String(initial.actualAmount));
+  const [notes, setNotes] = useState(initial?.notes ?? "");
+  const scheduled = initial?.status === "expected" && amount.trim() === "";
 
-  async function onSubmit(data: IncomeEventFormData) {
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
     const formData = new FormData();
-    formData.set("name", data.name);
-    formData.set("expectedDate", data.expectedDate);
-    formData.set("expectedAmount", data.expectedAmount != null ? String(data.expectedAmount) : "");
-    formData.set("actualAmount", data.actualAmount != null ? String(data.actualAmount) : "");
-    formData.set("status", data.status);
-    formData.set("notes", data.notes ?? "");
-
-    if (isEdit && initial?.id) {
-      const r = await updateIncome(initial.id, monthKey, formData);
-      if (r?.error) {
-        Object.entries(r.error).forEach(([, messages]) => {
-          messages?.forEach((m) => toast.error(m));
-        });
+    formData.set("name", name);
+    formData.set("expectedDate", date);
+    formData.set("actualAmount", amount);
+    formData.set("notes", notes);
+    try {
+      const result = initial
+        ? await updateIncome(initial.id, monthKey, formData)
+        : monthId != null
+          ? await createIncome(monthId, monthKey, formData)
+          : { error: { form: ["Month not found."] } };
+      if ("error" in result && result.error) {
+        Object.values(result.error).flat().forEach((message) => toast.error(message));
         return;
       }
-      toast.success("Updated");
-    } else if (monthId) {
-      const r = await createIncome(monthId, monthKey, formData);
-      if (r?.error) {
-        Object.entries(r.error).forEach(([, messages]) => {
-          messages?.forEach((m) => toast.error(m));
-        });
-        return;
-      }
-      toast.success("Added");
+      toast.success(initial ? "Income updated" : "Income added");
+      router.refresh();
+      onSuccess?.();
+    } catch {
+      toast.error("Couldn't save income. Please try again.");
+    } finally {
+      setSaving(false);
     }
-    form.reset();
-    onSuccess?.();
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+    <form onSubmit={save} className="space-y-4 pt-4">
       <div className="space-y-2">
-        <Label htmlFor="name">Name</Label>
-        <Input id="name" {...form.register("name")} placeholder="Paycheck" />
-        {form.formState.errors.name && (
-          <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
-        )}
+        <Label htmlFor="income-name">Source</Label>
+        <Input id="income-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="USPS" required />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="expectedDate">Expected date</Label>
-        <Input id="expectedDate" type="date" {...form.register("expectedDate")} />
-        {form.formState.errors.expectedDate && (
-          <p className="text-sm text-destructive">{form.formState.errors.expectedDate.message}</p>
-        )}
+        <Label htmlFor="income-date">{scheduled ? "Scheduled payday" : "Date received"}</Label>
+        <Input id="income-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="expectedAmount">Expected amount</Label>
-        <Input id="expectedAmount" type="number" step="0.01" {...form.register("expectedAmount")} />
+        <Label htmlFor="income-amount">Amount received</Label>
+        <Input id="income-amount" type="number" min="0.01" step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={scheduled ? "Enter when deposited" : "0.00"} required={!scheduled} />
+        {scheduled && <p className="text-xs text-muted-foreground">Leave blank until this paycheck arrives. Its scheduled date still drives reminders.</p>}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="actualAmount">Actual amount</Label>
-        <Input id="actualAmount" type="number" step="0.01" {...form.register("actualAmount")} />
+        <Label htmlFor="income-notes">Note (optional)</Label>
+        <Textarea id="income-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
       </div>
-      <div className="space-y-2">
-        <Label>Status</Label>
-        <Select
-          value={form.watch("status")}
-          onValueChange={(v) => form.setValue("status", v as "expected" | "received")}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="expected">Expected</SelectItem>
-            <SelectItem value="received">Received</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="notes">Comment (optional)</Label>
-        <Textarea id="notes" {...form.register("notes")} rows={2} />
-      </div>
-      <Button type="submit" disabled={form.formState.isSubmitting}>
-        {isEdit ? "Update" : "Add"} income
-      </Button>
+      <Button type="submit" disabled={saving}>{saving ? "Saving..." : initial ? "Save changes" : "Add income"}</Button>
     </form>
   );
 }
