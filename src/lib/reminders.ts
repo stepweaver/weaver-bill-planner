@@ -18,7 +18,7 @@ export interface ReminderIncome {
 }
 
 export type ReminderKind = "none" | "due" | "overdue" | "payday" | "resurface" | "combined";
-export type ReminderSlot = "morning" | "afternoon" | "evening";
+export type ReminderSlot = "morning" | "afternoon" | "evening" | "night";
 
 export interface ReminderPlan {
   todayIso: string;
@@ -41,18 +41,26 @@ const TITLE = "λledger";
  * Lock-screen copy. Counts choose the sentence. Names and amounts stay off the phone.
  * A payday notice asks the user to verify the deposit. It does not say the money arrived.
  */
+function billCount(count: number): string {
+  return `${count} ${count === 1 ? "bill" : "bills"}`;
+}
+
+/**
+ * Give a clear, actionable nudge without including private bill names or amounts
+ * on the lock screen. All actionable scheduled bills are checked again next slot.
+ */
 export function reminderMessage(input: {
-  due: boolean;
-  overdue: boolean;
-  resurfaced: boolean;
+  due: number;
+  overdue: number;
+  resurfaced: number;
   payday: boolean;
 }): { kind: ReminderKind; title: string; body: string } {
-  const billsReady = input.due || input.overdue || input.resurfaced;
-  if (input.payday && billsReady) {
+  const attentionCount = input.due + input.overdue + input.resurfaced;
+  if (input.payday && attentionCount > 0) {
     return {
       kind: "combined",
       title: TITLE,
-      body: "A paycheck is scheduled today and bills are ready. Verify the deposit, then plan bills.",
+      body: `A paycheck is scheduled today and ${billCount(attentionCount)} need attention. Verify the deposit, then pay or float bills in λledger.`,
     };
   }
   if (input.payday) {
@@ -62,19 +70,25 @@ export function reminderMessage(input: {
       body: "A paycheck is scheduled today. Verify the deposit, then plan bills.",
     };
   }
-  if (input.overdue) return { kind: "overdue", title: TITLE, body: "Bills are overdue. Open λledger to pay or float them." };
-  if (input.due) {
+  if (input.overdue > 0) {
+    return {
+      kind: "overdue",
+      title: TITLE,
+      body: `${billCount(input.overdue)} overdue. Open λledger to pay or float ${input.overdue === 1 ? "it" : "them"}.`,
+    };
+  }
+  if (input.due > 0) {
     return {
       kind: "due",
       title: TITLE,
-      body: "Bills are due today. Open λledger to plan payments.",
+      body: `${billCount(input.due)} due today. Open λledger to pay or float ${input.due === 1 ? "it" : "them"}.`,
     };
   }
-  if (input.resurfaced) {
+  if (input.resurfaced > 0) {
     return {
       kind: "resurface",
       title: TITLE,
-      body: "A floated bill is ready to pay. Open λledger to plan it.",
+      body: `${billCount(input.resurfaced)} ready again after floating. Open λledger to pay or float ${input.resurfaced === 1 ? "it" : "them"}.`,
     };
   }
   return { kind: "none", title: TITLE, body: "" };
@@ -89,8 +103,15 @@ export function dailyDedupeKey(todayIso: string, slot: ReminderSlot = "morning")
   return `daily:${todayIso}:${slot}`;
 }
 
+/**
+ * The VPS runs at 9 AM, 1 PM, 5 PM and 8 PM Indianapolis time.
+ * Each run has its own dedupe key so outstanding bills repeat until handled.
+ */
 export function reminderSlotForHour(hour: number): ReminderSlot {
-  return hour < 13 ? "morning" : hour < 18 ? "afternoon" : "evening";
+  if (hour < 13) return "morning";
+  if (hour < 17) return "afternoon";
+  if (hour < 20) return "evening";
+  return "night";
 }
 
 /**
@@ -138,9 +159,9 @@ export function evaluateReminders(input: {
   }
 
   const message = reminderMessage({
-    due: dueBillIds.length > 0,
-    overdue: overdueBillIds.length > 0,
-    resurfaced: resurfacedBillIds.length > 0,
+    due: dueBillIds.length,
+    overdue: overdueBillIds.length,
+    resurfaced: resurfacedBillIds.length,
     payday: paydayNames.length > 0,
   });
   const targetPath = safeCallbackPath(notificationTargetPath(input.workspaceMonthKey));
