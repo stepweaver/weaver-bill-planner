@@ -46,16 +46,6 @@ export function MonthAttentionStrip({ attention }: { attention: MonthAttention }
         "border-violet-500/40 bg-violet-500/10 text-violet-950 dark:text-violet-100 hover:bg-violet-500/15",
     });
   }
-  if (attention.overCapacityWindowKeys.length > 0) {
-    items.push({
-      key: "over",
-      label: "Paycheck over capacity",
-      count: attention.overCapacityWindowKeys.length,
-      className:
-        "border-orange-500/40 bg-orange-500/10 text-orange-950 dark:text-orange-100",
-    });
-  }
-
   if (items.length === 0) {
     return (
       <p className="text-sm text-muted-foreground rounded-md border border-dashed px-3 py-2">
