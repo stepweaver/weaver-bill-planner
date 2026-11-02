@@ -79,8 +79,8 @@ export default async function MonthsPage() {
                       Pending bills: <span className="font-medium text-foreground">{s.pendingBillCount}</span>
                     </p>
                     <p className="text-xs leading-relaxed">
-                      <span className="text-muted-foreground">Income </span>
-                      <span className="font-medium text-foreground">{formatCurrency(s.expectedIncome)}</span>
+                      <span className="text-muted-foreground">Received </span>
+                      <span className="font-medium text-foreground">{formatCurrency(s.receivedIncome)}</span>
                       <span className="text-muted-foreground"> · Leftover </span>
                       <span className="font-medium text-foreground">{formatCurrency(s.leftover)}</span>
                       <span className="text-muted-foreground"> (after paid)</span>
