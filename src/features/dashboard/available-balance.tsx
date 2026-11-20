@@ -47,7 +47,7 @@ export function AvailableBalanceEditor({
         toast.error(result.error);
         return;
       }
-      toast.success("Bank balance saved");
+      toast.success("Bank balance saved.");
       onClose?.();
       router.refresh();
     } catch {
@@ -101,7 +101,7 @@ export function AvailableBalanceEditor({
             Last saved {format(new Date(updatedAt), "MMM d, h:mm a")}.{" "}
           </time>
         ) : null}
-        Enter the balance before pending withdrawals. Those are subtracted below.
+        Enter what the bank shows. Sent payments are subtracted.
       </p>
     </form>
   );

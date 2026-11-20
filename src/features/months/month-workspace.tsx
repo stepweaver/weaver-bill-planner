@@ -52,7 +52,7 @@ function withOwner(
 
 export function MonthWorkspace(props: Props) {
   return (
-    <Suspense fallback={<p className="mt-3 text-sm text-muted-foreground">Loading ledger…</p>}>
+    <Suspense fallback={<p className="mt-3 text-sm text-muted-foreground">Opening λledger…</p>}>
       <MonthWorkspaceContent {...props} />
     </Suspense>
   );
@@ -91,8 +91,8 @@ function MonthWorkspaceContent({
       <div className="flex items-center justify-between gap-2">
         <ViewSwitcher operational={planningSnapshot.operational} />
         <span className="hidden text-xs text-muted-foreground sm:inline">
-          {view === "now" ? "Make a payment decision" :
-            view === "plan" ? "Look ahead by paycheck" : "Review what happened"}
+          {view === "now" ? "Handle what&apos;s due" :
+            view === "plan" ? "Plan by payday" : "See what&apos;s done"}
         </span>
       </div>
 
@@ -113,7 +113,7 @@ function MonthWorkspaceContent({
           />
           {planningSnapshot.operational && paydayEvents.some((event) => event.expectedDate === todayIso) ? (
             <section className="rounded-md border p-3">
-              <p className="mb-1 text-sm font-semibold">Payday check-in</p>
+              <p className="mb-1 text-sm font-semibold">Payday check</p>
               <PaydayAcknowledgment acknowledged={paydayAcknowledged} />
             </section>
           ) : null}

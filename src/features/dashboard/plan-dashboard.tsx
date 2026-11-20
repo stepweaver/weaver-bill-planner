@@ -36,7 +36,7 @@ export function PlanDashboard({
         <div>
           <h2 className="text-base font-semibold">Paycheck plan</h2>
           <p className="text-xs text-muted-foreground">
-            Period estimates help plan future payments. They are not your bank balance.
+            Future plan only. Not your bank balance.
           </p>
         </div>
         <AddIncomeButton monthId={monthId} monthKey={monthKey} />
@@ -69,19 +69,19 @@ export function PlanDashboard({
                     </div>
                   ) : null}
                   <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Assigned commitments</span>
+                    <span className="text-muted-foreground">Bills planned</span>
                     <span className="tabular-nums">{formatCents(period.commitmentCents)}</span>
                   </div>
                   <div className="flex justify-between gap-2 border-t pt-1 text-sm font-semibold">
-                    <span>Period estimate</span>
+                    <span>Estimated left</span>
                     <span className="tabular-nums">
                       {remainder.remainderCents == null ? "—" : formatCents(remainder.remainderCents)}
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    {remainder.basis === "scheduled" ? "Includes expected, unreceived income." :
-                      remainder.basis === "received" ? "Based on recorded income; not reconciled to bank." :
-                      "Add income to estimate this period."}
+                    {remainder.basis === "scheduled" ? "Counts pay that hasn&apos;t arrived." :
+                      remainder.basis === "received" ? "Based on recorded pay, not your bank balance." :
+                      "Add income to see what&apos;s left."}
                   </p>
                 </div>
               </section>
@@ -90,7 +90,7 @@ export function PlanDashboard({
         </div>
       ) : (
         <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-          Add a paycheck to start planning by pay period.
+          Add a payday to start the plan.
         </p>
       )}
       {(grouped.unassigned.length > 0 || grouped.floated.length > 0) ? (
@@ -99,7 +99,7 @@ export function PlanDashboard({
             <div className="rounded-md border p-3 text-sm">
               <strong>Unassigned: {formatCents(unassignedCents)}</strong>
               <p className="mt-1 text-xs text-muted-foreground">
-                {grouped.unassigned.length} open bill(s) not in a paycheck period. These are not included in period estimates.
+                {grouped.unassigned.length} bill(s) not assigned to a payday. Left out of estimates.
               </p>
             </div>
           ) : null}
@@ -107,14 +107,14 @@ export function PlanDashboard({
             <div className="rounded-md border p-3 text-sm">
               <strong>Floated: {formatCents(floatedCents)}</strong>
               <p className="mt-1 text-xs text-muted-foreground">
-                {grouped.floated.length} bill(s) held to a later date. Original due dates stay unchanged; not included in period estimates.
+                {grouped.floated.length} bill(s) on hold. Due dates unchanged. Left out of estimates.
               </p>
             </div>
           ) : null}
         </div>
       ) : null}
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Income schedule</h3>
+        <h3 className="text-sm font-semibold">Paydays</h3>
         <IncomeList events={income} monthKey={monthKey} windows={windows} />
       </section>
       <BillTableByWindow

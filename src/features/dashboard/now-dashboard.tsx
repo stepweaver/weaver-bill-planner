@@ -94,7 +94,7 @@ export function NowDashboard({
       if ("error" in result) {
         toast.error(result.error);
       } else {
-        toast.success("Float removed. Original due date unchanged.");
+        toast.success("Float canceled. Due date unchanged.");
         router.refresh();
       }
     } catch {
@@ -105,9 +105,9 @@ export function NowDashboard({
   if (!operational) {
     return (
       <section className="rounded-lg border p-4 text-sm">
-        <h2 className="font-semibold">This is not the current month</h2>
+        <h2 className="font-semibold">Not the current month</h2>
         <p className="mt-1 text-muted-foreground">
-          Live bank balances and payment decisions belong on the current month. Use Plan or History to review this month.
+          Open the current month to handle bills. Use Plan or History here.
         </p>
         {liveMonth ? (
           <Link href={liveMonth.href} className="mt-3 inline-block text-primary underline">
@@ -144,7 +144,7 @@ export function NowDashboard({
           </div>
           <div className="min-w-0 border-l border-border pl-3">
             <h2 className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              After this plan
+              Left after bills
             </h2>
             <p
               className={cn(
@@ -157,8 +157,8 @@ export function NowDashboard({
           </div>
         </div>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-border/70 pt-2 text-xs text-muted-foreground">
-          <span>Sent, not cleared: <strong className="font-medium text-foreground">{formatCents(plan.pendingCents)}</strong></span>
-          <span>Selected to pay: <strong className="font-medium text-foreground">{formatCents(plan.selectedCents)}</strong></span>
+          <span>Already sent: <strong className="font-medium text-foreground">{formatCents(plan.pendingCents)}</strong></span>
+          <span>To pay: <strong className="font-medium text-foreground">{formatCents(plan.selectedCents)}</strong></span>
         </div>
         {editingBalance || availableBalance == null ? (
           <div className="mt-3">
@@ -172,10 +172,10 @@ export function NowDashboard({
         ) : null}
         {short ? (
           <p className="mt-2 text-xs text-rose-500">
-            Short {formatCents(Math.abs(left ?? 0))}. Deselect or float a bill to adjust the plan.
+            Short {formatCents(Math.abs(left ?? 0))}. {nextPayday ? "Uncheck a bill or float it." : "Uncheck a bill to adjust the plan."}
           </p>
         ) : left == null ? (
-          <p className="mt-2 text-xs text-muted-foreground">Enter what your bank currently shows to calculate the remainder.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Enter your bank balance to see what&apos;s left.</p>
         ) : null}
       </section>
 
@@ -185,7 +185,7 @@ export function NowDashboard({
             <div>
               <h2 className="text-base font-semibold">Bills to handle</h2>
               <p className="text-[11px] text-muted-foreground">
-                Choose what to pay. Sent payments are already reserved.
+                Check what you&apos;re paying. Sent payments are counted.
               </p>
             </div>
             <AddBillButton monthId={monthId} monthKey={monthKey} windows={windows} />
@@ -216,7 +216,7 @@ export function NowDashboard({
               </Fragment>
             )) : (
               <li className="px-4 py-6 text-center text-sm text-muted-foreground">
-                You're caught up. No bills need a decision.
+                Nothing to handle. You&apos;re clear.
               </li>
             )}
           </ul>
@@ -240,14 +240,14 @@ export function NowDashboard({
               </>
             ) : (
               <p className="mt-1 text-sm text-muted-foreground">
-                No future paycheck recorded. Add income in Plan.
+                No payday on file. Add one in Plan.
               </p>
             )}
           </section>
           <section className="rounded-md border p-3">
-            <h3 className="text-sm font-semibold">Floated to later</h3>
+            <h3 className="text-sm font-semibold">Floated</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Original due dates are unchanged.
+              Due dates haven&apos;t changed.
             </p>
             {buckets.floated.length ? (
               <ul className="mt-2 divide-y divide-border/70">
@@ -270,7 +270,7 @@ export function NowDashboard({
             )}
           </section>
           <p className="px-1 text-xs text-muted-foreground">
-            The amount after this plan is a projection, not a guarantee of money available to spend.
+            Projected balance. Not money to spend yet.
           </p>
         </aside>
       </div>

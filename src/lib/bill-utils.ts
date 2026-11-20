@@ -136,11 +136,11 @@ export function orderBillsForPlan<T extends BillForOrder>(bills: readonly T[], t
 }
 
 export const BILL_GROUP_LABEL: Record<BillDisplayGroup, string> = {
-  overdue: "Overdue and due today",
-  upcoming: "Upcoming",
+  overdue: "Due now / past due",
+  upcoming: "Coming up",
   floated: "Floated",
-  pending: "Pending",
-  settled: "Paid and skipped",
+  pending: "Sent / not cleared",
+  settled: "Handled",
 };
 
 /** Same bill records, once each. Carryover rows are not copied into the viewed month. */
