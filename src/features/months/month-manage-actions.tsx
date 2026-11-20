@@ -92,7 +92,7 @@ export function MonthManageActions({
           type="button"
           className={
             variant === "header"
-              ? cn(buttonVariants({ variant: "outline", size: "sm" }), "whitespace-nowrap")
+              ? cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 w-full min-w-0 justify-center px-1.5 text-xs sm:text-sm")
               : cn(buttonVariants({ variant: "outline", size: "icon-sm" }), "shrink-0")
           }
           aria-label={variant === "header" ? "Manage month" : `Manage ${label}`}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { addMonths, subMonths, format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { MonthManageActions } from "./month-manage-actions";
 import { closeMonthFormAction } from "./actions";
 
@@ -59,16 +60,24 @@ export async function MonthHeader({
         </div>
 
         <nav
-          className="flex flex-wrap items-center gap-2"
+          className={cn(
+            "mx-auto grid w-full max-w-md gap-2",
+            status === "closed" ? "grid-cols-2" : "grid-cols-3"
+          )}
           aria-label="Month planning"
         >
-          <Link href={`/months/new?from=${monthKey}`}>
-            <Button variant="secondary" size="sm" className="whitespace-nowrap">
-              Set up next month
-            </Button>
+          <Link
+            href={`/months/new?from=${monthKey}`}
+            aria-label="Set up next month"
+            className="inline-flex h-10 min-w-0 w-full items-center justify-center rounded-lg bg-secondary px-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm"
+          >
+            <span className="sm:hidden">Next month</span>
+            <span className="hidden sm:inline">Set up next month</span>
           </Link>
           {status !== "closed" ? <CloseMonthButton monthKey={monthKey} /> : null}
-          <MonthManageActions monthKey={monthKey} label={label} variant="header" />
+          <div className="min-w-0 w-full">
+            <MonthManageActions monthKey={monthKey} label={label} variant="header" />
+          </div>
         </nav>
       </div>
     </header>
@@ -77,9 +86,9 @@ export async function MonthHeader({
 
 function CloseMonthButton({ monthKey }: { monthKey: string }) {
   return (
-    <form action={closeMonthFormAction} className="inline min-w-0">
+    <form action={closeMonthFormAction} className="min-w-0 w-full">
       <input type="hidden" name="monthKey" value={monthKey} />
-      <Button type="submit" variant="outline" size="sm" className="whitespace-nowrap">
+      <Button type="submit" variant="outline" size="sm" className="h-10 w-full min-w-0 justify-center px-1.5 text-xs sm:text-sm">
         Close month
       </Button>
     </form>
