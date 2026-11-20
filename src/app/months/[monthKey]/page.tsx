@@ -13,9 +13,11 @@ export default async function MonthDetailPage({
   params: Promise<{ monthKey: string }>;
 }) {
   const { monthKey } = await params;
-  const data = await getMonthWithData(monthKey);
+  const [data, paydayAcknowledged] = await Promise.all([
+    getMonthWithData(monthKey),
+    isPaydayAcknowledged(),
+  ]);
   if (!data) notFound();
-  const paydayAcknowledged = await isPaydayAcknowledged();
 
   const {
     month,
@@ -32,7 +34,7 @@ export default async function MonthDetailPage({
 
   return (
     <AppShell>
-      <MonthHeader monthKey={monthKey} label={month.label} />
+      <MonthHeader monthKey={monthKey} label={month.label} status={month.status} />
       <MonthWorkspace
         monthKey={monthKey}
         monthId={month.id}

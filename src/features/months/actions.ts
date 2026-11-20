@@ -119,20 +119,29 @@ export async function getMonthsList(): Promise<MonthListRow[]> {
 
 export async function getMonthByKey(monthKey: string) {
   if (!hasDb()) return null;
-  const ledgerId = await getDefaultLedgerId();
-  if (!ledgerId) return null;
-  const [month] = await db
-    .select()
+  // Keep session gating, but fetch the default-ledger month in one DB trip.
+  const session = await getSessionForServer();
+  if (!session) return null;
+  const [result] = await db
+    .select({ month: months })
     .from(months)
-    .where(and(eq(months.ledgerId, ledgerId), eq(months.monthKey, monthKey)))
+    .innerJoin(ledgers, eq(months.ledgerId, ledgers.id))
+    .where(and(eq(ledgers.isDefault, true), eq(months.monthKey, monthKey)))
     .limit(1);
-  return month ?? null;
+  return result?.month ?? null;
 }
 
 export async function getOpenMonthKey(): Promise<string | null> {
   if (!hasDb()) return null;
-  const list = await getMonthsList();
-  const open = list.find((m) => m.status === "open");
+  const ledgerId = await getDefaultLedgerId();
+  if (!ledgerId) return null;
+  // The home redirect only needs a key, not every bill and every month's metrics.
+  const [open] = await db
+    .select({ monthKey: months.monthKey })
+    .from(months)
+    .where(and(eq(months.ledgerId, ledgerId), eq(months.status, "open")))
+    .orderBy(desc(months.monthKey))
+    .limit(1);
   return open?.monthKey ?? null;
 }
 
@@ -174,34 +183,57 @@ export async function getMonthWithData(monthKey: string) {
   const today = new Date();
   const todayIso = ledgerTodayIso(today);
   const operational = isCurrentCalendarMonth(monthKey, today);
-  const income = await db
-    .select()
-    .from(incomeEvents)
-    .where(eq(incomeEvents.monthId, month.id))
-    .orderBy(asc(incomeEvents.expectedDate), asc(incomeEvents.sortOrder));
-  const billsRows = await db
-    .select()
-    .from(billInstances)
-    .where(eq(billInstances.monthId, month.id))
-    .orderBy(asc(billInstances.sortOrder), asc(billInstances.dueDate));
-  // Any earlier month on this ledger, not only the previous one.
-  const priorRows = operational
-    ? await db
-        .select({
-          bill: billInstances,
-          ownerMonthKey: months.monthKey,
-        })
-        .from(billInstances)
-        .innerJoin(months, eq(billInstances.monthId, months.id))
-        .where(
-          and(
+  // These reads are independent once the month is authorized. Fetch them
+  // concurrently instead of paying several sequential Neon network round trips.
+  const liveKey = operational ? null : calendarMonthKey(today);
+  const [income, billsRows, priorRows, ledgerRows, paydayRows, liveMonths] = await Promise.all([
+    db
+      .select()
+      .from(incomeEvents)
+      .where(eq(incomeEvents.monthId, month.id))
+      .orderBy(asc(incomeEvents.expectedDate), asc(incomeEvents.sortOrder)),
+    db
+      .select()
+      .from(billInstances)
+      .where(eq(billInstances.monthId, month.id))
+      .orderBy(asc(billInstances.sortOrder), asc(billInstances.dueDate)),
+    operational
+      ? db
+          .select({ bill: billInstances, ownerMonthKey: months.monthKey })
+          .from(billInstances)
+          .innerJoin(months, eq(billInstances.monthId, months.id))
+          .where(and(
             eq(months.ledgerId, month.ledgerId),
             lt(months.monthKey, monthKey),
             inArray(billInstances.status, ["scheduled", "pending"])
-          )
-        )
-        .orderBy(asc(billInstances.dueDate), asc(billInstances.id))
-    : [];
+          ))
+          .orderBy(asc(billInstances.dueDate), asc(billInstances.id))
+      : Promise.resolve([] as { bill: typeof billInstances.$inferSelect; ownerMonthKey: string }[]),
+    db
+      .select({
+        availableBalance: ledgers.availableBalance,
+        availableBalanceUpdatedAt: ledgers.availableBalanceUpdatedAt,
+      })
+      .from(ledgers)
+      .where(eq(ledgers.id, month.ledgerId))
+      .limit(1),
+    db
+      .select({
+        name: incomeEvents.name,
+        expectedDate: incomeEvents.expectedDate,
+        status: incomeEvents.status,
+      })
+      .from(incomeEvents)
+      .innerJoin(months, eq(incomeEvents.monthId, months.id))
+      .where(eq(months.ledgerId, month.ledgerId)),
+    liveKey
+      ? db
+          .select({ monthKey: months.monthKey, label: months.label })
+          .from(months)
+          .where(and(eq(months.ledgerId, month.ledgerId), eq(months.monthKey, liveKey)))
+          .limit(1)
+      : Promise.resolve([] as { monthKey: string; label: string }[]),
+  ]);
   const templateIds = [
     ...new Set(
       [...billsRows, ...priorRows.map((row) => row.bill)]
@@ -293,14 +325,7 @@ export async function getMonthWithData(monthKey: string) {
     paycheckSummaries,
     operational ? carryoverForFunding : []
   );
-  const [ledgerRow] = await db
-    .select({
-      availableBalance: ledgers.availableBalance,
-      availableBalanceUpdatedAt: ledgers.availableBalanceUpdatedAt,
-    })
-    .from(ledgers)
-    .where(eq(ledgers.id, month.ledgerId))
-    .limit(1);
+  const ledgerRow = ledgerRows[0];
   const storedBalance = numericToNumber(ledgerRow?.availableBalance ?? null);
   const planning = buildPaycheckPlanningSnapshot({
     income: income.map((event) => ({
@@ -338,12 +363,9 @@ export async function getMonthWithData(monthKey: string) {
     today,
   });
 
-  let liveMonth: { href: string; label: string } | null = null;
-  if (!operational) {
-    const liveKey = calendarMonthKey(today);
-    const live = await getMonthByKey(liveKey);
-    if (live) liveMonth = { href: `/months/${liveKey}`, label: live.label };
-  }
+  const liveMonth: { href: string; label: string } | null = liveKey && liveMonths[0]
+    ? { href: `/months/${liveKey}`, label: liveMonths[0].label }
+    : null;
 
   const updatedAt = ledgerRow?.availableBalanceUpdatedAt ?? null;
   const updatedAtIso = (() => {
@@ -352,15 +374,6 @@ export async function getMonthWithData(monthKey: string) {
     return Number.isNaN(date.getTime()) ? null : date.toISOString();
   })();
 
-  const paydayRows = await db
-    .select({
-      name: incomeEvents.name,
-      expectedDate: incomeEvents.expectedDate,
-      status: incomeEvents.status,
-    })
-    .from(incomeEvents)
-    .innerJoin(months, eq(incomeEvents.monthId, months.id))
-    .where(eq(months.ledgerId, month.ledgerId));
   const paydayEvents: PaydayEventRow[] = paydayRows
     .map((row) => ({
       name: row.name,
