@@ -9,6 +9,7 @@ import { AddBillButton } from "@/features/bills/add-bill-button";
 import { undoFloatBill } from "@/features/bills/actions";
 import { buildPaymentPlan, nextFuturePayday, type PlanBill } from "@/lib/payment-plan";
 import { splitBillsForViews, nextPaydayCard } from "@/lib/dashboard-bills";
+import { isPriorityCarryover, orderNowBills } from "@/lib/bill-priority";
 import type { PaydayEventRow } from "@/features/months/actions";
 import { cn } from "@/lib/utils";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
@@ -72,6 +73,10 @@ export function NowDashboard({
   });
   const selected = new Set(plan.selectedIds);
   const buckets = splitBillsForViews(bills, todayIso);
+  const priorityBills = buckets.now.filter((bill) => isPriorityCarryover(bill, todayIso, monthKey));
+  const actionBills = orderNowBills(buckets.now, todayIso, monthKey);
+  const topPriority = priorityBills[0] ?? null;
+  const priorityPaymentUrl = topPriority?.paymentUrl && /^https?:\/\//i.test(topPriority.paymentUrl) ? topPriority.paymentUrl : null;
   const nextPayday = nextFuturePayday(paydayEvents, todayIso);
   const nextInMonth = nextPaydayCard(income, todayIso);
   const nextAmount = nextPayday?.date === nextInMonth?.date ? nextInMonth?.scheduledCents : null;
@@ -176,6 +181,34 @@ export function NowDashboard({
         ) : null}
       </section>
 
+      {topPriority ? (
+        <section aria-label="Overdue carryover priority"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border-2 border-rose-500/70 bg-rose-500/10 px-3 py-3">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wider text-rose-300">
+              Priority · {priorityBills.length} overdue carryover{priorityBills.length === 1 ? "" : "s"}
+            </p>
+            <p className="mt-1 text-sm font-semibold">
+              {topPriority.name} is past due from a previous month.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Handle old unpaid bills first. Opening a payment site does not mark a bill as sent.
+            </p>
+          </div>
+          {priorityPaymentUrl ? (
+            <a href={priorityPaymentUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex min-h-10 items-center justify-center rounded-md bg-rose-500 px-3 text-xs font-semibold text-white hover:bg-rose-600">
+              Open payment site
+            </a>
+          ) : (
+            <a href={"#bill-row-" + topPriority.id}
+              className="inline-flex min-h-10 items-center justify-center rounded-md border border-rose-500/70 px-3 text-xs font-semibold text-rose-200">
+              Handle this bill
+            </a>
+          )}
+        </section>
+      ) : null}
+
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_minmax(260px,0.9fr)]">
         <section className="min-w-0 space-y-2" aria-label="Bills needing attention">
           <div className="flex items-center justify-between gap-2">
@@ -188,7 +221,7 @@ export function NowDashboard({
             <AddBillButton monthId={monthId} monthKey={monthKey} windows={windows} />
           </div>
           <ul className="max-h-[min(62vh,580px)] divide-y-0 overflow-y-auto rounded-md border bg-card/30 lg:max-h-[min(56vh,490px)]">
-            {buckets.now.length ? buckets.now.map((bill) => (
+            {actionBills.length ? actionBills.map((bill) => (
               <ActionableBillRow
                 key={bill.id}
                 bill={bill}
@@ -197,6 +230,7 @@ export function NowDashboard({
                 windows={bill.ownerMonthKey === monthKey ? windows : []}
                 nextPaydayDate={nextPayday?.date ?? null}
                 viewingMonthKey={monthKey}
+                todayIso={todayIso}
               />
             )) : (
               <li className="px-4 py-6 text-center text-sm text-muted-foreground">

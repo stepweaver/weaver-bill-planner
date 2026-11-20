@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import tsx --test src/lib/payment-plan.test.ts src/lib/reminders.test.ts src/lib/dashboard-bills.test.ts",
+    "test": "node --import tsx --test src/lib/payment-plan.test.ts src/lib/reminders.test.ts src/lib/dashboard-bills.test.ts src/lib/bill-priority.test.ts",
     "notify": "tsx src/jobs/notify.ts",
     "notify:dry-run": "tsx src/jobs/notify.ts --dry-run",
     "db:generate": "drizzle-kit generate",

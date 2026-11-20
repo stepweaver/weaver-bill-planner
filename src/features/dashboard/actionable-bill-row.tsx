@@ -13,7 +13,10 @@ import {
   billEditorSheetClassName,
 } from "@/features/bills/bill-form";
 import { floatBill, updateBillPaymentState } from "@/features/bills/actions";
-import { getEffectivePlannedAmount } from "@/lib/bill-utils";
+import { getEffectivePlannedAmount, isoDateOnly } from "@/lib/bill-utils";
+import { isOverdueActionBill, isPriorityCarryover } from "@/lib/bill-priority";
+import { daysUntilLedgerDate } from "@/lib/ledger-date-math";
+import { cn } from "@/lib/utils";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
 import { formatMoney, formatShortDate } from "./format";
 import type { DashboardBill } from "./types";
@@ -25,6 +28,7 @@ export function ActionableBillRow({
   windows,
   nextPaydayDate,
   viewingMonthKey,
+  todayIso,
 }: {
   bill: DashboardBill;
   selected: boolean;
@@ -32,12 +36,16 @@ export function ActionableBillRow({
   windows: PaycheckWindow[];
   nextPaydayDate: string | null;
   viewingMonthKey: string;
+  todayIso: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editingRecurring, setEditingRecurring] = useState(bill.isRecurring !== false);
   const pending = bill.status === "pending";
+  const overdue = isOverdueActionBill(bill, todayIso);
+  const priority = isPriorityCarryover(bill, todayIso, viewingMonthKey);
+  const daysLate = daysUntilLedgerDate(isoDateOnly(bill.dueDate) ?? "", todayIso);
   const scheduled = bill.status === "scheduled";
   const missingAmount = bill.plannedAmount == null && bill.invoiceAmount == null;
   const amount = getEffectivePlannedAmount(bill.plannedAmount, bill.invoiceAmount);
@@ -90,7 +98,11 @@ export function ActionableBillRow({
   }
 
   return (
-    <li id={"bill-row-" + bill.id} className="scroll-mt-24 border-b border-border/70 last:border-b-0">
+    <li id={"bill-row-" + bill.id} className={cn(
+      "scroll-mt-24 border-b border-border/70 last:border-b-0",
+      priority && "border-l-4 border-l-rose-500 bg-rose-500/10",
+      overdue && !priority && "border-l-2 border-l-amber-500 bg-amber-500/5"
+    )}>
       <div className="flex items-center gap-2 px-2 py-2.5 sm:gap-3 sm:px-3">
         {scheduled ? (
           <input
@@ -111,7 +123,7 @@ export function ActionableBillRow({
                   href={safePaymentUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex max-w-full items-center gap-1 text-sm font-medium text-primary hover:underline"
+                  className={cn("inline-flex max-w-full items-center gap-1 text-sm font-medium hover:underline", priority ? "text-rose-300" : "text-primary")}
                   title={"Open payment website for " + bill.name}
                 >
                   <span className="truncate">{bill.name}</span>
@@ -120,8 +132,18 @@ export function ActionableBillRow({
               ) : (
                 <span className="block truncate text-sm font-medium">{bill.name}</span>
               )}
+              {priority ? (
+                <span className="my-1 inline-flex rounded border border-rose-500/60 bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-200">
+                  Priority · overdue carryover
+                </span>
+              ) : overdue ? (
+                <span className="my-1 inline-flex rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-200">
+                  Overdue
+                </span>
+              ) : null}
               <p className="text-xs text-muted-foreground">
                 {formatShortDate(bill.dueDate)}
+                {overdue && daysLate != null ? " · " + Math.abs(daysLate) + (Math.abs(daysLate) === 1 ? " day past due" : " days past due") : ""}
                 {pending ? " · Sent, awaiting clearance" : ""}
                 {inOtherMonth ? " · Carryover" : ""}
               </p>
