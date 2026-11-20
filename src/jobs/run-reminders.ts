@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, lte, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import {
   billInstances,
@@ -15,9 +15,12 @@ import {
   evaluateReminders,
   reminderSlotForHour,
   isExpiredPushSubscription,
+  isReminderQuietHour,
+  STALE_SENDING_MINUTES,
   type ReminderPlan,
 } from "../lib/reminders";
 import { readVapidConfig, sendWebPush } from "../lib/web-push";
+import { addLedgerDays } from "../lib/ledger-date-math";
 
 async function claimDelivery(input: {
   ledgerId: number;
@@ -52,7 +55,11 @@ async function claimDelivery(input: {
       and(
         eq(notificationDeliveries.dedupeKey, input.plan.dedupeKey),
         eq(notificationDeliveries.subscriptionId, input.subscriptionId),
-        inArray(notificationDeliveries.status, ["pending", "failed"]),
+        or(
+          inArray(notificationDeliveries.status, ["pending", "failed"]),
+          and(eq(notificationDeliveries.status, "sending"),
+              lt(notificationDeliveries.updatedAt, sql`now() - (${STALE_SENDING_MINUTES} * interval '1 minute')`))
+        ),
         lt(notificationDeliveries.attemptCount, MAX_DELIVERY_ATTEMPTS)
       )
     )
@@ -87,6 +94,9 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
   try {
     const localHour = Number(new Intl.DateTimeFormat("en-US", { timeZone: LEDGER_TIME_ZONE, hour: "2-digit", hourCycle: "h23" }).format(new Date()));
     const slot = reminderSlotForHour(localHour);
+    const quiet = isReminderQuietHour(localHour);
+    const dryRun = options.dryRun || quiet;
+    const horizonIso = addLedgerDays(todayIso, 2);
     const ledgerRows = await db.select().from(ledgers).where(eq(ledgers.isDefault, true));
     const reports = [];
 
@@ -102,6 +112,9 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
           name: billInstances.name,
           dueDate: billInstances.dueDate,
           status: billInstances.status,
+          plannedAmount: billInstances.plannedAmount,
+          invoiceAmount: billInstances.invoiceAmount,
+          amountPaid: billInstances.amountPaid,
           floatTargetDate: billInstances.floatTargetDate,
           ownerMonthKey: months.monthKey,
         })
@@ -111,7 +124,7 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
           and(
             eq(months.ledgerId, ledger.id),
             eq(billInstances.status, "scheduled"),
-            or(sql`${billInstances.dueDate} <= ${todayIso}`, sql`${billInstances.floatTargetDate} <= ${todayIso}`)
+            or(lte(billInstances.dueDate, horizonIso), lte(billInstances.floatTargetDate, todayIso))
           )
         );
       const incomeRows = await db
@@ -148,14 +161,17 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
         ledgerId: ledger.id,
         todayIso,
         timezone: LEDGER_TIME_ZONE,
-        dryRun: options.dryRun,
+        dryRun,
+        quietHoursSuppressed: quiet && !options.dryRun,
         kind: plan.kind,
         shouldNotify: plan.shouldNotify,
         title: plan.title,
         body: plan.body,
         targetPath: plan.targetPath,
         dedupeKey: plan.dedupeKey,
+        upcomingBillIds: plan.upcomingBillIds,
         dueBillIds: plan.dueBillIds,
+        overdueCarryoverBillIds: plan.overdueCarryoverBillIds,
         overdueBillIds: plan.overdueBillIds,
         resurfacedBillIds: plan.resurfacedBillIds,
         paydayNames: plan.paydayNames,
@@ -165,7 +181,7 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
         removedSubscriptions: 0,
       };
 
-      if (!options.dryRun && plan.shouldNotify && subscriptions.length > 0) {
+      if (!dryRun && plan.shouldNotify && subscriptions.length > 0) {
         if (!readVapidConfig()) {
           report.error = "VAPID keys are not configured.";
           reports.push(report);
@@ -208,7 +224,7 @@ export async function runReminders(options: { dryRun: boolean }): Promise<number
     }
 
     console.log(JSON.stringify({ timezone: LEDGER_TIME_ZONE, todayIso, reports }, null, 2));
-    return 0;
+    return reports.some((report) => Number(report.failed) > 0) ? 1 : 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Notification job failed.";
     console.error(message);

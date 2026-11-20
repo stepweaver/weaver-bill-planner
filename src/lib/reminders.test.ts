@@ -8,6 +8,7 @@ import {
   deliveryClaim,
   evaluateReminders,
   isExpiredPushSubscription,
+  isReminderQuietHour,
   reminderSlotForHour,
   type ReminderBill,
   type ReminderIncome,
@@ -186,16 +187,18 @@ describe("persistent reminder follow-ups", () => {
     assert.equal(reminderSlotForHour(18), "evening");
   });
 
-  it("keeps reminding for yesterday's unresolved bill", () => {
-    const result = evaluateReminders({
+  it("reminds in the evening for yesterday's unresolved bill, not every afternoon", () => {
+    const base = {
       todayIso: TODAY,
-      slot: "afternoon",
       workspaceMonthKey: "2026-10",
       bills: [bill({ id: 22, dueDate: "2026-10-27" })],
       income: [],
-    });
-    assert.equal(result.kind, "overdue");
-    assert.deepEqual(result.overdueBillIds, [22]);
+    };
+    const afternoon = evaluateReminders({ ...base, slot: "afternoon" });
+    assert.equal(afternoon.kind, "none");
+    const evening = evaluateReminders({ ...base, slot: "evening" });
+    assert.equal(evening.kind, "overdue");
+    assert.deepEqual(evening.overdueBillIds, [22]);
   });
 
   it("does not remind for handled or actively floated overdue bills", () => {
@@ -219,5 +222,72 @@ describe("persistent reminder follow-ups", () => {
     assert.equal(result.kind, "due");
     assert.deepEqual(result.paydayNames, []);
     assert.deepEqual(result.dueBillIds, [44]);
+  });
+});
+
+
+describe("pocket companion reminder cadence", () => {
+  const evaluate = (slot: "morning" | "afternoon" | "evening", bills: ReminderBill[], events: ReminderIncome[] = [], acknowledged = false) =>
+    evaluateReminders({
+      todayIso: TODAY,
+      slot,
+      workspaceMonthKey: "2026-10",
+      bills,
+      income: events,
+      paydayAcknowledged: acknowledged,
+    });
+
+  it("warns two days before due only in morning and again when actually due", () => {
+    const upcoming = bill({ id: 1, dueDate: "2026-10-30" });
+    assert.deepEqual(evaluate("morning", [upcoming]).upcomingBillIds, [1]);
+    assert.equal(evaluate("morning", [upcoming]).kind, "upcoming");
+    assert.equal(evaluate("afternoon", [upcoming]).shouldNotify, false);
+    assert.equal(evaluate("evening", [upcoming]).shouldNotify, false);
+    const todayDue = bill({ id: 2, dueDate: TODAY });
+    assert.equal(evaluate("evening", [todayDue]).kind, "due");
+  });
+
+  it("escalates overdue carryover without revealing bill names or amounts", () => {
+    const result = evaluate("morning", [
+      bill({ id: 17, name: "Sensitive", dueDate: "2026-09-24", ownerMonthKey: "2026-09" }),
+    ]);
+    assert.equal(result.kind, "overdue");
+    assert.deepEqual(result.overdueCarryoverBillIds, [17]);
+    assert.match(result.body, /carryover/);
+    assert.equal(result.body.includes("Sensitive"), false);
+    assert.equal(result.body.includes("$"), false);
+  });
+
+  it("avoids alerting for completed payments or active floats", () => {
+    const result = evaluate("morning", [
+      bill({ id: 1, status: "pending" }),
+      bill({ id: 2, status: "paid" }),
+      bill({ id: 3, floatTargetDate: "2026-11-01" }),
+      { ...bill({ id: 4, dueDate: TODAY }), plannedAmount: 20, amountPaid: 20 },
+    ]);
+    assert.equal(result.shouldNotify, false);
+  });
+
+  it("sends a payday follow-up in afternoon until acknowledged but no payday-only evening ping", () => {
+    assert.equal(evaluate("morning", [], [income()]).kind, "payday");
+    assert.equal(evaluate("afternoon", [], [income()]).kind, "payday");
+    assert.equal(evaluate("evening", [], [income()]).shouldNotify, false);
+    assert.equal(evaluate("afternoon", [], [income()], true).shouldNotify, false);
+  });
+
+  it("combines a payday and overdue carryover with that priority first", () => {
+    const result = evaluate("morning", [
+      bill({ id: 9, dueDate: "2026-09-28", ownerMonthKey: "2026-09" }),
+    ], [income()]);
+    assert.equal(result.kind, "combined");
+    assert.match(result.body, /overdue carryover/);
+  });
+
+  it("suppresses catch-up pushes overnight and preserves separate scheduled slot keys", () => {
+    assert.equal(isReminderQuietHour(7), true);
+    assert.equal(isReminderQuietHour(9), false);
+    assert.equal(isReminderQuietHour(20), false);
+    assert.equal(isReminderQuietHour(21), true);
+    assert.notEqual(dailyDedupeKey(TODAY, "morning"), dailyDedupeKey(TODAY, "evening"));
   });
 });
