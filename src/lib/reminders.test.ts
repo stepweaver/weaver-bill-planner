@@ -253,7 +253,7 @@ describe("pocket companion reminder cadence", () => {
     ]);
     assert.equal(result.kind, "overdue");
     assert.deepEqual(result.overdueCarryoverBillIds, [17]);
-    assert.match(result.body, /carryover/);
+    assert.match(result.body, /earlier month/);
     assert.equal(result.body.includes("Sensitive"), false);
     assert.equal(result.body.includes("$"), false);
   });

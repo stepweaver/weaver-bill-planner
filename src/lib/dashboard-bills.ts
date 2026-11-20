@@ -22,6 +22,7 @@ export function resolveLedgerView(
 
 export interface DashboardBillState extends FloatState {
   id: number;
+  name: string;
   dueDate: string | Date | null;
   plannedAmount: number | null;
   invoiceAmount: number | null;
