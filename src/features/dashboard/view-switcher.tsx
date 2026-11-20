@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { resolveLedgerView, type LedgerView } from "@/lib/dashboard-bills";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,6 @@ const VIEWS: { id: LedgerView; label: string }[] = [
 export function ViewSwitcher({ operational }: { operational: boolean }) {
   const params = useSearchParams();
   const pathname = usePathname();
-  const router = useRouter();
   const current = resolveLedgerView(params.get("view"), operational);
 
   function open(view: LedgerView) {
@@ -21,7 +20,9 @@ export function ViewSwitcher({ operational }: { operational: boolean }) {
     if (view === "now" && operational) next.delete("view");
     else next.set("view", view);
     const query = next.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    // A tab is a local dashboard view, not a server navigation.
+    // Next.js syncs native History API updates with useSearchParams.
+    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
   }
 
   return (
