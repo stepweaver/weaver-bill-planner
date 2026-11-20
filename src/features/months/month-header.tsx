@@ -2,8 +2,8 @@ import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { addMonths, subMonths, format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { getMonthByKey } from "./actions";
 import { MonthManageActions } from "./month-manage-actions";
+import { closeMonthFormAction } from "./actions";
 
 function prevNextMonth(monthKey: string, delta: number): string {
   const [y, m] = monthKey.split("-").map(Number);
@@ -17,9 +17,11 @@ function prevNextMonth(monthKey: string, delta: number): string {
 export async function MonthHeader({
   monthKey,
   label,
+  status,
 }: {
   monthKey: string;
   label: string;
+  status: string;
 }) {
   const prevKey = prevNextMonth(monthKey, -1);
   const nextKey = prevNextMonth(monthKey, 1);
@@ -65,7 +67,7 @@ export async function MonthHeader({
               Roll forward
             </Button>
           </Link>
-          <CloseMonthButton monthKey={monthKey} />
+          {status !== "closed" ? <CloseMonthButton monthKey={monthKey} /> : null}
           <MonthManageActions monthKey={monthKey} label={label} variant="header" />
         </nav>
       </div>
@@ -73,10 +75,7 @@ export async function MonthHeader({
   );
 }
 
-async function CloseMonthButton({ monthKey }: { monthKey: string }) {
-  const month = await getMonthByKey(monthKey);
-  if (!month || month.status === "closed") return null;
-  const { closeMonthFormAction } = await import("./actions");
+function CloseMonthButton({ monthKey }: { monthKey: string }) {
   return (
     <form action={closeMonthFormAction} className="inline min-w-0">
       <input type="hidden" name="monthKey" value={monthKey} />
