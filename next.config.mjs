@@ -3,6 +3,7 @@ import { fileURLToPath } from "url";
 
 /** App directory (this file lives at project root). */
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+const isDevelopment = process.env.NODE_ENV === "development";
 
 /** @type {import('next').NextConfig} */
 const securityHeaders = [
@@ -23,7 +24,9 @@ const securityHeaders = [
       "object-src 'none'",
       "img-src 'self' data: blob:",
       "style-src 'self' 'unsafe-inline'",
-      "script-src 'self' 'unsafe-inline'",
+      // React Fast Refresh uses eval-based source maps under Webpack in local dev.
+      // Never enable unsafe-eval for production responses.
+      `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
       "connect-src 'self' https://fcm.googleapis.com https://updates.push.services.mozilla.com https://web.push.apple.com https://*.push.apple.com",
       "upgrade-insecure-requests",
     ].join("; "),
