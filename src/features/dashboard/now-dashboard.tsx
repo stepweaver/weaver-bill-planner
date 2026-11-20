@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -75,8 +75,6 @@ export function NowDashboard({
   const buckets = splitBillsForViews(bills, todayIso);
   const priorityBills = buckets.now.filter((bill) => isPriorityCarryover(bill, todayIso, monthKey));
   const actionBills = orderNowBills(buckets.now, todayIso, monthKey);
-  const topPriority = priorityBills[0] ?? null;
-  const priorityPaymentUrl = topPriority?.paymentUrl && /^https?:\/\//i.test(topPriority.paymentUrl) ? topPriority.paymentUrl : null;
   const nextPayday = nextFuturePayday(paydayEvents, todayIso);
   const nextInMonth = nextPaydayCard(income, todayIso);
   const nextAmount = nextPayday?.date === nextInMonth?.date ? nextInMonth?.scheduledCents : null;
@@ -181,34 +179,6 @@ export function NowDashboard({
         ) : null}
       </section>
 
-      {topPriority ? (
-        <section aria-label="Overdue carryover priority"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-md border-2 border-rose-500/70 bg-rose-500/10 px-3 py-3">
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-wider text-rose-300">
-              Priority · {priorityBills.length} overdue carryover{priorityBills.length === 1 ? "" : "s"}
-            </p>
-            <p className="mt-1 text-sm font-semibold">
-              {topPriority.name} is past due from a previous month.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Handle old unpaid bills first. Opening a payment site does not mark a bill as sent.
-            </p>
-          </div>
-          {priorityPaymentUrl ? (
-            <a href={priorityPaymentUrl} target="_blank" rel="noopener noreferrer"
-              className="inline-flex min-h-10 items-center justify-center rounded-md bg-rose-500 px-3 text-xs font-semibold text-white hover:bg-rose-600">
-              Open payment site
-            </a>
-          ) : (
-            <a href={"#bill-row-" + topPriority.id}
-              className="inline-flex min-h-10 items-center justify-center rounded-md border border-rose-500/70 px-3 text-xs font-semibold text-rose-200">
-              Handle this bill
-            </a>
-          )}
-        </section>
-      ) : null}
-
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_minmax(260px,0.9fr)]">
         <section className="min-w-0 space-y-2" aria-label="Bills needing attention">
           <div className="flex items-center justify-between gap-2">
@@ -221,17 +191,29 @@ export function NowDashboard({
             <AddBillButton monthId={monthId} monthKey={monthKey} windows={windows} />
           </div>
           <ul className="max-h-[min(62vh,580px)] divide-y-0 overflow-y-auto rounded-md border bg-card/30 lg:max-h-[min(56vh,490px)]">
-            {actionBills.length ? actionBills.map((bill) => (
-              <ActionableBillRow
-                key={bill.id}
-                bill={bill}
-                selected={selected.has(bill.id)}
-                onSelect={(checked) => toggleBill(bill.id, checked)}
-                windows={bill.ownerMonthKey === monthKey ? windows : []}
-                nextPaydayDate={nextPayday?.date ?? null}
-                viewingMonthKey={monthKey}
-                todayIso={todayIso}
-              />
+            {priorityBills.length > 0 ? (
+              <li className="flex items-center justify-between gap-2 border-b border-border/70 bg-amber-500/5 px-3 py-1.5 text-xs font-medium text-amber-300">
+                <span>Overdue from earlier months</span>
+                <span className="tabular-nums">{priorityBills.length}</span>
+              </li>
+            ) : null}
+            {actionBills.length ? actionBills.map((bill, index) => (
+              <Fragment key={bill.id}>
+                {priorityBills.length > 0 && index === priorityBills.length ? (
+                  <li className="border-y border-border/70 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground">
+                    Other bills
+                  </li>
+                ) : null}
+                <ActionableBillRow
+                  bill={bill}
+                  selected={selected.has(bill.id)}
+                  onSelect={(checked) => toggleBill(bill.id, checked)}
+                  windows={bill.ownerMonthKey === monthKey ? windows : []}
+                  nextPaydayDate={nextPayday?.date ?? null}
+                  viewingMonthKey={monthKey}
+                  todayIso={todayIso}
+                />
+              </Fragment>
             )) : (
               <li className="px-4 py-6 text-center text-sm text-muted-foreground">
                 You're caught up. No bills need a decision.
