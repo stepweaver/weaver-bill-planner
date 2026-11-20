@@ -117,8 +117,7 @@ export function MonthManageActions({
           <DialogHeader>
             <DialogTitle>Change month</DialogTitle>
             <DialogDescription>
-              Move {label} to a different calendar month. Bill due dates and income dates shift
-              to the same day in the new month (clamped to month end).
+              Move {label} to another month. Bill and payday dates shift with it. Dates beyond month end use the last day.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -158,8 +157,7 @@ export function MonthManageActions({
           <DialogHeader>
             <DialogTitle>Delete {label}?</DialogTitle>
             <DialogDescription>
-              This permanently removes the month and every bill and income line in it. This cannot
-              be undone.
+              Permanently deletes this month, its bills, and its income. You can&apos;t undo this.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

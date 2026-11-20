@@ -13,10 +13,9 @@ export default async function NewMonthPage({
   const monthsList = await getMonthsList();
   return (
     <AppShell>
-      <h1 className="text-2xl font-semibold">Roll forward month</h1>
+      <h1 className="text-2xl font-semibold">Set up next month</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Copy recurring bills and paychecks from a source month. Quick check highlights common gaps;
-        expand the editor if you need to change rows before saving.
+        Copy bills and paydays. Check the details. Save the month.
       </p>
       <div className="mt-6">
         <CreateMonthWizard

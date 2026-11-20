@@ -24,7 +24,7 @@ export default async function MonthsPage() {
       <div className="flex items-center justify-between">
         <h1 className="terminal-glow text-2xl font-semibold tracking-tight">Months</h1>
         <Link href="/months/new">
-          <Button>Roll forward month</Button>
+          <Button>Set up next month</Button>
         </Link>
       </div>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -32,7 +32,7 @@ export default async function MonthsPage() {
           <Card className="sm:col-span-2 lg:col-span-3">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <p className="text-muted-foreground">
-                No months yet. Create your first month to get started.
+                No months yet. Set up your first one.
               </p>
               <Link href="/months/new" className="mt-4">
                 <Button>Start first month</Button>
@@ -70,7 +70,7 @@ export default async function MonthsPage() {
                         )}
                         {s.dueSoonCount > 0 && (
                           <>
-                            Due in next 7 days: <span className="font-semibold">{s.dueSoonCount}</span>
+                            Due within 7 days: <span className="font-semibold">{s.dueSoonCount}</span>
                           </>
                         )}
                       </p>

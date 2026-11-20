@@ -58,7 +58,7 @@ export function reminderMessage(input: {
     return {
       kind: "combined",
       title: TITLE,
-      body: "A paycheck is scheduled today, and overdue carryover bills need attention first. Verify the deposit and plan payments.",
+      body: "Payday. Check the deposit. Older bills are past due. Handle those first.",
     };
   }
   if (input.payday && needsAttention) {
@@ -66,38 +66,38 @@ export function reminderMessage(input: {
       kind: "combined",
       title: TITLE,
       body: input.due || input.overdue || input.resurfaced
-        ? "A paycheck is scheduled today and bills are ready. Verify the deposit, then plan bills."
-        : "A paycheck is scheduled today. Verify the deposit and plan bills due soon.",
+        ? "Payday. Check the deposit, then handle the bills."
+        : "Payday. Check the deposit. Bills are coming due soon.",
     };
   }
   if (input.payday) {
     return {
       kind: "payday",
       title: TITLE,
-      body: "A paycheck is scheduled today. Verify the deposit, then plan bills.",
+      body: "Payday. Check the deposit. Review the plan.",
     };
   }
   if (input.overdueCarryover) {
     return {
       kind: "overdue",
       title: TITLE,
-      body: "Overdue bills carried from an earlier month need attention first. Open λledger to handle them.",
+      body: "Bills from an earlier month are past due. Handle those first.",
     };
   }
   if (input.overdue) {
-    return { kind: "overdue", title: TITLE, body: "Bills are overdue. Open λledger to pay or float them." };
+    return { kind: "overdue", title: TITLE, body: "Past due. Pay or float what's outstanding." };
   }
   if (input.due) {
-    return { kind: "due", title: TITLE, body: "Bills are due today. Open λledger to plan payments." };
+    return { kind: "due", title: TITLE, body: "Bills due today. Pay or float." };
   }
   if (input.resurfaced) {
-    return { kind: "resurface", title: TITLE, body: "A floated bill is ready to pay. Open λledger to plan it." };
+    return { kind: "resurface", title: TITLE, body: "Back on deck. A floated bill needs a decision." };
   }
   if (input.upcoming) {
     return {
       kind: "upcoming",
       title: TITLE,
-      body: "Bills are due within two days. Open λledger to plan ahead.",
+      body: "Bills due within two days. Check the plan.",
     };
   }
   return { kind: "none", title: TITLE, body: "" };

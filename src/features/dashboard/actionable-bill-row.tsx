@@ -56,8 +56,8 @@ export function ActionableBillRow({
 
   async function changePayment(status: "pending" | "paid") {
     const question = status === "pending"
-      ? "Confirm that you initiated payment for " + bill.name + "? This will reserve the payment until it clears."
-      : "Confirm that payment for " + bill.name + " has cleared your bank?";
+      ? "Sent payment for " + bill.name + "? We’ll count it until it clears."
+      : "Did " + bill.name + " clear the bank?";
     if (!window.confirm(question)) return;
     setBusy(true);
     try {
@@ -67,7 +67,7 @@ export function ActionableBillRow({
       if ("error" in result) {
         toast.error(result.error);
       } else {
-        toast.success(status === "pending" ? "Payment recorded as sent" : "Payment cleared");
+        toast.success(status === "pending" ? "Marked sent. Waiting to clear." : "Marked cleared.");
         router.refresh();
       }
     } catch {
@@ -87,7 +87,7 @@ export function ActionableBillRow({
       if ("error" in result) {
         toast.error(result.error);
       } else {
-        toast.success("Planned for " + formatShortDate(nextPaydayDate) + ". Original due date unchanged.");
+        toast.success("Floated to " + formatShortDate(nextPaydayDate) + ". Due date unchanged.");
         router.refresh();
       }
     } catch {
@@ -113,7 +113,7 @@ export function ActionableBillRow({
             className="size-5 shrink-0 accent-primary"
           />
         ) : (
-          <span className="flex size-5 shrink-0 items-center justify-center text-amber-600" title="Payment awaiting clearance" aria-label="Payment awaiting clearance">●</span>
+          <span className="flex size-5 shrink-0 items-center justify-center text-amber-600" title="Sent. Not cleared." aria-label="Sent. Not cleared.">●</span>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -134,13 +134,13 @@ export function ActionableBillRow({
               )}
               <p className={cn("text-xs text-muted-foreground", overdue && "text-amber-200/80")}>
                 {formatShortDate(bill.dueDate)}
-                {overdue && daysLate != null ? " · " + Math.abs(daysLate) + (Math.abs(daysLate) === 1 ? " day past due" : " days past due") : ""}
-                {pending ? " · Sent, awaiting clearance" : ""}
-                {inOtherMonth ? " · Carryover" : ""}
+                {overdue && daysLate != null ? " · " + Math.abs(daysLate) + (Math.abs(daysLate) === 1 ? " day late" : " days late") : ""}
+                {pending ? " · Sent. Not cleared." : ""}
+                {inOtherMonth ? " · Older bill" : ""}
               </p>
             </div>
             <span className="shrink-0 text-sm font-semibold tabular-nums">
-              {missingAmount ? "Set amount" : formatMoney(amount)}
+              {missingAmount ? "Add amount" : formatMoney(amount)}
             </span>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1.5">

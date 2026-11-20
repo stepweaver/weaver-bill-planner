@@ -37,7 +37,7 @@ export function PaycheckRail({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">Paycheck windows</h3>
+        <h3 className="text-sm font-medium">Paydays</h3>
         {hasActiveFilter && (
           <Button
             type="button"
@@ -77,7 +77,7 @@ export function PaycheckRail({
                   </span>
                   {s.overExpected && (
                     <span className="shrink-0 text-[10px] font-medium text-orange-700 dark:text-orange-300">
-                      Over expected
+                      Over budget
                     </span>
                   )}
                 </div>
@@ -107,8 +107,7 @@ export function PaycheckRail({
         })}
       </ul>
       <p className="text-[10px] text-muted-foreground leading-snug">
-        Cushion is expected paycheck minus unpaid bill totals for that paycheck (all windows tied to
-        the same deposit). Planning figure, not bank balance.
+        Cushion is estimated pay minus unpaid bills. Not your bank balance.
       </p>
     </div>
   );

@@ -64,7 +64,7 @@ export async function MonthHeader({
         >
           <Link href={`/months/new?from=${monthKey}`}>
             <Button variant="secondary" size="sm" className="whitespace-nowrap">
-              Roll forward
+              Set up next month
             </Button>
           </Link>
           {status !== "closed" ? <CloseMonthButton monthKey={monthKey} /> : null}

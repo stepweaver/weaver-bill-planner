@@ -14,7 +14,7 @@ export default async function SettingsPage() {
     <AppShell>
       <h1 className="terminal-glow text-2xl font-semibold tracking-tight">Settings</h1>
       <p className="mt-2 text-sm text-muted-foreground max-w-lg">
-        Turn on phone notifications here. The rest of this page is reference only.
+        Turn on alerts here. Everything else is for reference.
       </p>
       <div className="mt-6 max-w-lg space-y-6">
         <Card>
@@ -34,7 +34,7 @@ export default async function SettingsPage() {
             <CardTitle className="text-base">Default ledger</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Household (MVP uses a single ledger. Multi-ledger support can be added later.)
+            Household
           </CardContent>
         </Card>
         <Card className="pointer-events-none">
@@ -42,7 +42,7 @@ export default async function SettingsPage() {
             <CardTitle className="text-base">Color legend</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Each color on the month view represents one paycheck window. Bills are grouped by when income arrives; you can manually assign a bill to a different paycheck if needed.
+            Colors show which payday covers each bill. Change the assignment if needed.
           </CardContent>
         </Card>
         <Card className="pointer-events-none">

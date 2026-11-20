@@ -69,7 +69,7 @@ export function IncomeForm({
   return (
     <form onSubmit={save} className="space-y-4 pt-4">
       <div className="space-y-2">
-        <Label htmlFor="income-name">Source</Label>
+        <Label htmlFor="income-name">Income source</Label>
         <Input id="income-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="USPS" required />
       </div>
       <div className="space-y-2">
@@ -79,7 +79,7 @@ export function IncomeForm({
       <div className="space-y-2">
         <Label htmlFor="income-amount">Amount received</Label>
         <Input id="income-amount" type="number" min="0.01" step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={scheduled ? "Enter when deposited" : "0.00"} required={!scheduled} />
-        {scheduled && <p className="text-xs text-muted-foreground">Leave blank until this paycheck arrives. Its scheduled date still drives reminders.</p>}
+        {scheduled && <p className="text-xs text-muted-foreground">Leave blank until you&apos;re paid. You&apos;ll still get a payday reminder.</p>}
       </div>
       <div className="space-y-2">
         <Label htmlFor="income-notes">Note (optional)</Label>

@@ -10,6 +10,7 @@ import {
   isExpiredPushSubscription,
   isReminderQuietHour,
   reminderSlotForHour,
+  reminderMessage,
   type ReminderBill,
   type ReminderIncome,
 } from "./reminders";
@@ -52,7 +53,7 @@ describe("due and payday reminders", () => {
     assert.equal(result.shouldNotify, true);
     assert.equal(result.kind, "due");
     assert.deepEqual(result.dueBillIds, [4]);
-    assert.equal(result.body, "Bills are due today. Open λledger to plan payments.");
+    assert.equal(result.body, "Bills due today. Pay or float.");
     assert.equal(result.body.includes("$"), false);
     assert.equal(result.targetPath, "/months/2026-10");
     assert.equal(result.dedupeKey, dailyDedupeKey(TODAY));
@@ -61,8 +62,8 @@ describe("due and payday reminders", () => {
   it("asks the user to verify a scheduled paycheck and does not say it arrived", () => {
     const result = plan([], [income()]);
     assert.equal(result.kind, "payday");
-    assert.match(result.body, /scheduled today/);
-    assert.match(result.body, /Verify the deposit/);
+    assert.match(result.body, /^Payday\./);
+    assert.match(result.body, /Check the deposit/);
     assert.equal(/arrived|deposited|\$/i.test(result.body), false);
     assert.deepEqual(result.paydayNames, ["Paycheck"]);
   });
@@ -70,8 +71,8 @@ describe("due and payday reminders", () => {
   it("combines payday and due bills into one notification", () => {
     const result = plan([bill({ id: 2 })], [income()]);
     assert.equal(result.kind, "combined");
-    assert.match(result.body, /paycheck is scheduled/);
-    assert.match(result.body, /bills are ready/);
+    assert.match(result.body, /^Payday\./);
+    assert.match(result.body, /handle the bills/);
     assert.equal(result.dedupeKey, plan([bill({ id: 9 })]).dedupeKey);
   });
 
@@ -117,6 +118,28 @@ describe("due and payday reminders", () => {
   it("falls back to the months list when the workspace month is missing", () => {
     const result = plan([bill({ id: 1 })], [], null);
     assert.equal(result.targetPath, "/months");
+  });
+});
+
+describe("short, private reminder copy", () => {
+  it("keeps all reminder variants short and discreet", () => {
+    const states = [
+      { due: false, overdue: false, resurfaced: false, payday: true },
+      { due: true, overdue: false, resurfaced: false, payday: false },
+      { due: false, overdue: true, resurfaced: false, payday: false },
+      { due: false, overdue: false, resurfaced: true, payday: false },
+      { upcoming: true, due: false, overdue: false, resurfaced: false, payday: false },
+      { due: false, overdue: false, overdueCarryover: true, resurfaced: false, payday: false },
+      { due: true, overdue: false, resurfaced: false, payday: true },
+      { due: false, overdue: true, overdueCarryover: true, resurfaced: false, payday: true },
+    ];
+    for (const state of states) {
+      const message = reminderMessage(state);
+      assert.equal(message.title, "λledger");
+      assert.notEqual(message.kind, "none");
+      assert.ok(message.body.length <= 90, `Copy too long: ${message.body}`);
+      assert.equal(/\$|Rent|account number/i.test(message.body), false);
+    }
   });
 });
 
@@ -280,7 +303,7 @@ describe("pocket companion reminder cadence", () => {
       bill({ id: 9, dueDate: "2026-09-28", ownerMonthKey: "2026-09" }),
     ], [income()]);
     assert.equal(result.kind, "combined");
-    assert.match(result.body, /overdue carryover/);
+    assert.match(result.body, /Older bills are past due/);
   });
 
   it("suppresses catch-up pushes overnight and preserves separate scheduled slot keys", () => {

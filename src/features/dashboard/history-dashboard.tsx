@@ -27,7 +27,7 @@ export function HistoryDashboard({
       <section className="min-w-0 space-y-2">
         <div>
           <h2 className="text-base font-semibold">Completed bills</h2>
-          <p className="text-xs text-muted-foreground">Paid, skipped, and fully covered records. Use Edit to correct an entry.</p>
+          <p className="text-xs text-muted-foreground">Paid, covered, or skipped. Edit to fix an entry.</p>
         </div>
         {completed.length ? (
           <ul className="rounded-md border text-sm">
@@ -47,7 +47,7 @@ export function HistoryDashboard({
             ))}
           </ul>
         ) : (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No completed bills yet.</p>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Nothing handled yet.</p>
         )}
       </section>
       <section className="min-w-0 space-y-2">
@@ -55,7 +55,7 @@ export function HistoryDashboard({
         {received.length ? (
           <IncomeList events={received} monthKey={monthKey} windows={windows} />
         ) : (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No received income recorded this month.</p>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No income recorded this month.</p>
         )}
       </section>
     </div>
