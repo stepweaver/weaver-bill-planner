@@ -34,4 +34,19 @@ describe("overdue carryover urgency", () => {
     assert.equal(daysUntilLedgerDate("2026-03-09", "2026-03-07"), 2);
     assert.equal(daysUntilLedgerDate("2026-02-30", today), null);
   });
+  it("keeps every overdue carryover together ahead of current-month debt", () => {
+    const rows = [
+      bill(1, "2026-11-18"),
+      bill(2, "2026-10-29", "2026-10"),
+      bill(3, "2026-09-16", "2026-09"),
+      bill(4, "2026-11-25"),
+      bill(5, "2026-10-01", "2026-10", "pending"),
+    ];
+    const result = orderNowBills(rows, today, "2026-11");
+    const carryover = result.filter((item) => isPriorityCarryover(item, today, "2026-11"));
+    assert.deepEqual(carryover.map((item) => item.id), [3, 2]);
+    assert.deepEqual(result.slice(0, carryover.length).map((item) => item.id), [3, 2]);
+    assert.deepEqual(result.map((item) => item.id), [3, 2, 1, 4, 5]);
+  });
+
 });
