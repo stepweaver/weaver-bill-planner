@@ -7,6 +7,7 @@ import { groupPlanBills, paycheckGroupMoney, paycheckPeriodDefs, projectGroupRem
 import { formatCents, formatShortDate } from "./format";
 import type { DashboardBill, DashboardIncome } from "./types";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
+import type { FloatPaydayEvent } from "@/lib/float-pay-period";
 
 export function PlanDashboard({
   monthKey,
@@ -16,6 +17,7 @@ export function PlanDashboard({
   windows,
   todayIso,
   nextPaydayDate,
+  paydayEvents,
 }: {
   monthKey: string;
   monthId: number;
@@ -24,6 +26,7 @@ export function PlanDashboard({
   windows: PaycheckWindow[];
   todayIso: string;
   nextPaydayDate: string | null;
+  paydayEvents: FloatPaydayEvent[];
 }) {
   const grouped = groupPlanBills(bills, paycheckPeriodDefs(windows), todayIso);
   const open = bills.filter((bill) => bill.status !== "paid" && bill.status !== "skipped");
@@ -124,6 +127,7 @@ export function PlanDashboard({
         monthKey={monthKey}
         todayIso={todayIso}
         nextPaydayDate={nextPaydayDate}
+        paydayEvents={paydayEvents}
       />
     </div>
   );

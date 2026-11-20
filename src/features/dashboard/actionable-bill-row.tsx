@@ -14,6 +14,8 @@ import {
 } from "@/features/bills/bill-form";
 import { floatBill, updateBillPaymentState } from "@/features/bills/actions";
 import { getEffectivePlannedAmount, isoDateOnly } from "@/lib/bill-utils";
+import { addLedgerDays } from "@/lib/ledger-date-math";
+import type { FloatPayPeriodSuggestion } from "@/lib/float-pay-period";
 import { isOverdueActionBill, isPriorityCarryover } from "@/lib/bill-priority";
 import { daysUntilLedgerDate } from "@/lib/ledger-date-math";
 import { cn } from "@/lib/utils";
@@ -26,7 +28,7 @@ export function ActionableBillRow({
   selected,
   onSelect,
   windows,
-  nextPaydayDate,
+  floatSuggestion,
   viewingMonthKey,
   todayIso,
 }: {
@@ -34,13 +36,15 @@ export function ActionableBillRow({
   selected: boolean;
   onSelect: (selected: boolean) => void;
   windows: PaycheckWindow[];
-  nextPaydayDate: string | null;
+  floatSuggestion: FloatPayPeriodSuggestion | null;
   viewingMonthKey: string;
   todayIso: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [chooseFloatDate, setChooseFloatDate] = useState(false);
+  const [manualFloatDate, setManualFloatDate] = useState("");
   const [editingRecurring, setEditingRecurring] = useState(bill.isRecurring !== false);
   const pending = bill.status === "pending";
   const overdue = isOverdueActionBill(bill, todayIso);
@@ -77,17 +81,23 @@ export function ActionableBillRow({
     }
   }
 
-  async function floatToPayday() {
-    if (!nextPaydayDate) return;
+  async function floatToPayday(targetDate: string, estimated: boolean) {
+    if (!targetDate) return;
+    if (estimated && !window.confirm(
+      "No payday is recorded for " + formatShortDate(targetDate) +
+      ". This date is estimated from your pay schedule. Float " + bill.name + " to it?"
+    )) return;
     setBusy(true);
     try {
       const result = await floatBill(
-        bill.id, bill.ownerMonthId, bill.ownerMonthKey, nextPaydayDate
+        bill.id, bill.ownerMonthId, bill.ownerMonthKey, targetDate
       );
       if ("error" in result) {
         toast.error(result.error);
       } else {
-        toast.success("Floated to " + formatShortDate(nextPaydayDate) + ". Due date unchanged.");
+        toast.success("Floated to " + formatShortDate(targetDate) +
+          (estimated ? " (estimated)" : "") + ". Due date unchanged.");
+        setChooseFloatDate(false);
         router.refresh();
       }
     } catch {
@@ -155,12 +165,23 @@ export function ActionableBillRow({
                   onClick={() => void changePayment("pending")}>
                   Mark sent
                 </Button>
-                {nextPaydayDate ? (
-                  <Button size="sm" variant="outline" className="h-8 text-xs" disabled={busy}
-                    onClick={() => void floatToPayday()}>
+                {floatSuggestion ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    disabled={busy}
+                    title={"Move to " + formatShortDate(floatSuggestion.date) + (floatSuggestion.estimated ? " (estimated payday)" : "")}
+                    onClick={() => void floatToPayday(floatSuggestion.date, floatSuggestion.estimated)}
+                  >
                     Float
                   </Button>
-                ) : null}
+                ) : (
+                  <Button size="sm" variant="outline" className="h-8 text-xs" disabled={busy}
+                    onClick={() => setChooseFloatDate((value) => !value)}>
+                    Float…
+                  </Button>
+                )}
               </>
             )}
             <Sheet open={editing} onOpenChange={setEditing}>
@@ -206,6 +227,25 @@ export function ActionableBillRow({
               </SheetContent>
             </Sheet>
           </div>
+          {chooseFloatDate ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <label htmlFor={"float-date-" + bill.id}>Plan payment for</label>
+              <input
+                id={"float-date-" + bill.id}
+                type="date"
+                min={addLedgerDays(todayIso, 1)}
+                value={manualFloatDate}
+                onChange={(event) => setManualFloatDate(event.target.value)}
+                className="h-9 rounded border border-border bg-background px-2"
+              />
+              <Button
+                size="sm" disabled={busy || !manualFloatDate}
+                onClick={() => void floatToPayday(manualFloatDate, false)}
+              >
+                Save
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
     </li>
