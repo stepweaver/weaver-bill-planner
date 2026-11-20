@@ -25,9 +25,9 @@ export async function MonthHeader({
   const nextKey = prevNextMonth(monthKey, 1);
 
   return (
-    <header className="border-b border-border pb-4">
-      <div className="space-y-3">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+    <header className="border-b border-border pb-2">
+      <div className="space-y-2">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Month
         </p>
 
@@ -46,7 +46,7 @@ export async function MonthHeader({
               <ChevronLeftIcon />
             </Button>
           </Link>
-          <h1 className="terminal-glow min-w-0 flex-1 text-center text-2xl font-semibold tracking-tight sm:text-left sm:text-3xl">
+          <h1 className="terminal-glow min-w-0 flex-1 text-center text-xl font-semibold tracking-tight sm:text-left sm:text-2xl">
             {label}
           </h1>
           <Link href={`/months/${nextKey}`} className="shrink-0">
