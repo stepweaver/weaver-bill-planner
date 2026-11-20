@@ -31,7 +31,7 @@ export function IncomeList({
     <div className="min-w-0 rounded border">
       {events.length === 0 ? (
         <p className="px-3 py-4 text-center text-sm text-muted-foreground">
-          No income. Add one to define paycheck windows.
+          No paydays entered. Add one to plan bills.
         </p>
       ) : (
         <ul className="divide-y divide-border text-sm">

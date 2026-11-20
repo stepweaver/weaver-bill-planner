@@ -118,7 +118,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess, onKin
 
   async function handleDelete() {
     if (!initial?.id) return;
-    if (!confirm(form.getValues("isRecurring") ? "Delete this bill?" : "Delete this expense?")) return;
+    if (!confirm(form.getValues("isRecurring") ? "Delete this bill? You can’t undo this." : "Delete this expense? You can’t undo this.")) return;
     setDeleting(true);
     try {
       const r = await deleteBill(initial.id, monthKey);
@@ -126,7 +126,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess, onKin
         toast.success("Deleted");
         onSuccess?.();
       } else {
-        toast.error("Failed to delete");
+        toast.error("Couldn't delete. Try again.");
       }
     } finally {
       setDeleting(false);
@@ -187,8 +187,8 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess, onKin
             </div>
             <p className="text-[11px] leading-snug text-muted-foreground">
               {recurring
-                ? "Repeats when you roll the month forward."
-                : "One time. Stays in this month and is not copied forward."}
+                ? "Copies into the next month."
+                : "One time. Won&apos;t copy to next month."}
             </p>
           </div>
 
@@ -227,9 +227,9 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess, onKin
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="scheduled">Due (not yet sent)</SelectItem>
-                    <SelectItem value="pending">Pending (sent, not cleared)</SelectItem>
-                    <SelectItem value="paid">Paid (cleared bank)</SelectItem>
+                    <SelectItem value="scheduled">Due</SelectItem>
+                    <SelectItem value="pending">Sent (not cleared)</SelectItem>
+                    <SelectItem value="paid">Paid (cleared)</SelectItem>
                     <SelectItem value="skipped">Skipped</SelectItem>
                   </SelectContent>
                 </Select>
@@ -265,18 +265,18 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess, onKin
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Leave amount paid blank to copy amount due when the bill is saved as pending or paid. A typed amount stays as entered.
+              Leave blank to use the amount due when marking Sent or Paid. A typed amount overrides it.
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="paymentUrl">Payment URL</Label>
+            <Label htmlFor="paymentUrl">Payment link</Label>
             <Input id="paymentUrl" type="url" {...form.register("paymentUrl")} placeholder="https://..." />
           </div>
 
           {windows.length > 0 ? (
           <div className="space-y-2">
-            <Label>Assign to paycheck</Label>
+            <Label>Pay with</Label>
             <Select
               value={form.watch("manualAssignment") ? form.watch("assignedGroupKey") ?? "" : "auto"}
               onValueChange={(v) => {

@@ -49,15 +49,15 @@ function getDraftExceptions(d: Draft): string[] {
   const messages: string[] = [];
   if (validIncomeRows(d).length === 0) {
     messages.push(
-      "No income with both a name and date. Paycheck windows (and auto-assignment) work best after you add at least one."
+      "Add a payday with a name and date to build your plan."
     );
   }
   for (const b of d.billInstances) {
     if (!b.dueDate) {
-      messages.push(`"${b.name}" has no due date — it will stay unassigned until you set one.`);
+      messages.push(`"${b.name}" needs a due date to go in the plan.`);
     }
     if (b.plannedAmount == null || b.plannedAmount <= 0) {
-      messages.push(`"${b.name}" has no planned amount — set an estimate when you can.`);
+      messages.push(`"${b.name}" needs an amount. An estimate is fine.`);
     }
   }
   return messages;
@@ -94,7 +94,7 @@ export function CreateMonthWizard({
 
   async function handleGetDraft() {
     if (!targetMonthKey.trim()) {
-      toast.error("Enter target month (e.g. 2026-03)");
+      toast.error("Enter a month (YYYY-MM).");
       return;
     }
     setLoading(true);
@@ -105,8 +105,8 @@ export function CreateMonthWizard({
       if (!result) {
         toast.error(
           hasExistingMonths
-            ? "Could not build draft"
-            : "No active templates. Add at least one template first."
+            ? "Couldn&apos;t build the month."
+            : "No recurring bills saved. Add one first."
         );
         return;
       }
@@ -181,7 +181,7 @@ export function CreateMonthWizard({
       <Card className="max-w-md">
         <CardHeader>
           <CardTitle className="text-lg">
-            {hasExistingMonths ? "Source and target" : "Create your first month"}
+            {hasExistingMonths ? "Copy from a month" : "First month setup"}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -204,11 +204,11 @@ export function CreateMonthWizard({
           )}
           {!hasExistingMonths && (
             <p className="text-sm text-muted-foreground">
-              We’ll build a draft from your active bill templates, using each template’s due day to set dates in the target month.
+              We&apos;ll copy your recurring bills and their due dates.
             </p>
           )}
           <div className="space-y-2">
-            <Label htmlFor="targetMonthKey">Target month (YYYY-MM)</Label>
+            <Label htmlFor="targetMonthKey">New month (YYYY-MM)</Label>
             <Input
               id="targetMonthKey"
               type="text"
@@ -218,7 +218,7 @@ export function CreateMonthWizard({
             />
           </div>
           <Button onClick={handleGetDraft} disabled={loading}>
-            {loading ? "Building draft…" : hasExistingMonths ? "Review draft" : "Build draft from templates"}
+            {loading ? "Copying…" : hasExistingMonths ? "Review month" : "Start month"}
           </Button>
         </CardContent>
       </Card>
@@ -233,7 +233,7 @@ export function CreateMonthWizard({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-medium">
-          Roll forward: {draft.label} ({draft.targetMonthKey})
+          Review {draft.label} ({draft.targetMonthKey})
         </h2>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setStep("choose")}>
@@ -247,7 +247,7 @@ export function CreateMonthWizard({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Quick check</CardTitle>
+          <CardTitle className="text-base">Final check</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
@@ -257,12 +257,12 @@ export function CreateMonthWizard({
           </p>
           {exceptions.length === 0 ? (
             <p className="text-sm text-green-700 dark:text-green-400">
-              No common issues flagged. You can save now and adjust in the month workspace.
+              Looks ready. Save or make changes.
             </p>
           ) : (
             <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
               <p className="text-xs font-medium text-amber-950 dark:text-amber-100 uppercase tracking-wider">
-                Exceptions ({exceptions.length})
+                Needs attention ({exceptions.length})
               </p>
               <ul className="mt-2 list-disc pl-5 text-sm text-foreground space-y-1">
                 {exceptions.map((msg, i) => (
@@ -277,12 +277,11 @@ export function CreateMonthWizard({
             size="sm"
             onClick={() => setEditAllRows((v) => !v)}
           >
-            {editAllRows ? "Hide" : "Show"} full row editor
+            {editAllRows ? "Hide" : "Show"} details
           </Button>
           {!editAllRows && (
             <p className="text-xs text-muted-foreground">
-              Save anytime; recurring structure copies forward and auto-assignment runs after save when
-              due dates and income line up.
+              Save now. You can edit bills and paydays later.
             </p>
           )}
         </CardContent>
@@ -296,7 +295,7 @@ export function CreateMonthWizard({
             </CardHeader>
             <CardContent className="space-y-2">
               {draft.billInstances.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No recurring bills to copy.</p>
+                <p className="text-sm text-muted-foreground">No recurring bills saved.</p>
               ) : (
                 <div className="space-y-3">
                   {draft.billInstances.map((b, i) => (
@@ -353,7 +352,7 @@ export function CreateMonthWizard({
             <CardContent>
               {draft.incomeEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No income yet. Add paychecks to define funding windows for the new month.
+                  No paydays yet. Add one to plan bills.
                 </p>
               ) : (
                 <div className="space-y-3">

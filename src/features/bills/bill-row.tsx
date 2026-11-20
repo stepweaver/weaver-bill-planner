@@ -59,7 +59,7 @@ function formatMoney(n: number | null) {
 function statusLabel(status: string, floated: boolean): string {
   if (floated) return "Floated";
   if (status === "scheduled") return "Due";
-  if (status === "pending") return "Pending";
+  if (status === "pending") return "Sent";
   if (status === "paid") return "Paid";
   if (status === "skipped") return "Skipped";
   return status;
@@ -228,7 +228,7 @@ function PaymentStateButton({
   const [saving, setSaving] = useState(false);
   const next = status === "scheduled" ? "pending" : status === "pending" ? "paid" : null;
   if (!next) return null;
-  const label = next === "pending" ? "Pending" : "Paid";
+  const label = next === "pending" ? "Mark sent" : "Mark cleared";
 
   async function onClick() {
     if (!next || saving) return;
@@ -250,7 +250,7 @@ function PaymentStateButton({
   return (
     <button
       type="button"
-      aria-label={next === "pending" ? `Mark ${billName} pending` : `Mark ${billName} paid`}
+      aria-label={next === "pending" ? `Mark ${billName} sent` : `Mark ${billName} paid`}
       aria-busy={saving}
       disabled={saving}
       onClick={onClick}
@@ -302,7 +302,7 @@ function FloatControl({
       }
       router.refresh();
     } catch {
-      toast.error("Couldn't update the float.");
+      toast.error("Couldn't change the float.");
     } finally {
       setSaving(false);
     }
