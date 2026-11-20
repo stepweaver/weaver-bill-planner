@@ -91,8 +91,8 @@ function MonthWorkspaceContent({
       <div className="flex items-center justify-between gap-2">
         <ViewSwitcher operational={planningSnapshot.operational} />
         <span className="hidden text-xs text-muted-foreground sm:inline">
-          {view === "now" ? "Handle what&apos;s due" :
-            view === "plan" ? "Plan by payday" : "See what&apos;s done"}
+          {view === "now" ? "Handle what's due" :
+            view === "plan" ? "Plan by payday" : "See what's done"}
         </span>
       </div>
 

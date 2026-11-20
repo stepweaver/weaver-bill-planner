@@ -79,9 +79,9 @@ export function PlanDashboard({
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    {remainder.basis === "scheduled" ? "Counts pay that hasn&apos;t arrived." :
+                    {remainder.basis === "scheduled" ? "Counts pay that hasn't arrived." :
                       remainder.basis === "received" ? "Based on recorded pay, not your bank balance." :
-                      "Add income to see what&apos;s left."}
+                      "Add income to see what's left."}
                   </p>
                 </div>
               </section>
@@ -99,7 +99,7 @@ export function PlanDashboard({
             <div className="rounded-md border p-3 text-sm">
               <strong>Unassigned: {formatCents(unassignedCents)}</strong>
               <p className="mt-1 text-xs text-muted-foreground">
-                {grouped.unassigned.length} bill(s) not assigned to a payday. Left out of estimates.
+                {grouped.unassigned.length} {grouped.unassigned.length === 1 ? "bill" : "bills"} not assigned to a payday. Left out of estimates.
               </p>
             </div>
           ) : null}
@@ -107,7 +107,7 @@ export function PlanDashboard({
             <div className="rounded-md border p-3 text-sm">
               <strong>Floated: {formatCents(floatedCents)}</strong>
               <p className="mt-1 text-xs text-muted-foreground">
-                {grouped.floated.length} bill(s) on hold. Due dates unchanged. Left out of estimates.
+                {grouped.floated.length} {grouped.floated.length === 1 ? "bill" : "bills"} on hold. Due dates unchanged. Left out of estimates.
               </p>
             </div>
           ) : null}

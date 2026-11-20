@@ -188,7 +188,7 @@ export function BillForm({ monthId, monthKey, windows, initial, onSuccess, onKin
             <p className="text-[11px] leading-snug text-muted-foreground">
               {recurring
                 ? "Copies into the next month."
-                : "One time. Won&apos;t copy to next month."}
+                : "One time. Won't copy to next month."}
             </p>
           </div>
 

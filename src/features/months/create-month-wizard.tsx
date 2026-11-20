@@ -105,7 +105,7 @@ export function CreateMonthWizard({
       if (!result) {
         toast.error(
           hasExistingMonths
-            ? "Couldn&apos;t build the month."
+            ? "Couldn't build the month."
             : "No recurring bills saved. Add one first."
         );
         return;

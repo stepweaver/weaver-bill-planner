@@ -136,7 +136,7 @@ function AvailableBalanceControl({
   return (
     <div className="space-y-1">
       <div className="flex items-baseline justify-between gap-3">
-        <SnapshotLabel>Available bank balance</SnapshotLabel>
+        <SnapshotLabel>Bank balance</SnapshotLabel>
         {balance != null && !showEditor ? (
           <button
             type="button"
@@ -163,7 +163,7 @@ function AvailableBalanceControl({
             autoComplete="off"
             enterKeyHint="done"
             placeholder="0.00"
-            aria-label="Available bank balance"
+            aria-label="Bank balance"
             disabled={saving}
             className="h-11 min-w-0 flex-1 text-base tabular-nums"
           />
@@ -206,13 +206,13 @@ function AvailableBalanceControl({
       )}
       <p className="text-[11px] text-muted-foreground">
         {showEditor ? (
-          "What your bank shows right now."
+          "Enter what the bank shows."
         ) : updatedAt ? (
           <time dateTime={updatedAt} suppressHydrationWarning>
             Updated {format(new Date(updatedAt), "MMM d, h:mm a")}
           </time>
         ) : (
-          "What your bank shows right now."
+          "Enter what the bank shows."
         )}
       </p>
     </div>
@@ -294,15 +294,15 @@ export function PlanningSnapshot({
 
             <div className="space-y-1 text-sm">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-muted-foreground">Pending payments</span>
+                <span className="text-muted-foreground">Already sent</span>
                 <span className="tabular-nums">{formatCents(plan.pendingCents)}</span>
               </div>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-muted-foreground">Selected bills</span>
+                <span className="text-muted-foreground">To pay</span>
                 <span className="tabular-nums">{formatCents(plan.selectedCents)}</span>
               </div>
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 pt-1">
-                <SnapshotLabel>Left after selected bills</SnapshotLabel>
+                <SnapshotLabel>Left after bills</SnapshotLabel>
                 {left != null ? (
                   <p
                     className={cn(
@@ -313,24 +313,24 @@ export function PlanningSnapshot({
                     {formatCents(left)}
                   </p>
                 ) : (
-                  <p className="text-right text-xs text-muted-foreground">Enter the bank balance</p>
+                  <p className="text-right text-xs text-muted-foreground">Enter your bank balance</p>
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
                 {left == null
-                  ? "Enter what the bank shows. Pending withdrawals are subtracted separately."
+                  ? "Enter what the bank shows. Sent payments are subtracted."
                   : short
-                    ? `Short ${formatCents(Math.abs(left))}. Float a bill or uncheck one you will not pay yet.`
-                    : "Bank balance, minus pending withdrawals, minus the bills you checked."}
+                    ? `Short ${formatCents(Math.abs(left))}. Uncheck a bill or float it.`
+                    : "Bank balance minus sent payments and checked bills."}
               </p>
               {!plan.hasFuturePayday ? (
                 <p className="text-sm text-amber-800 dark:text-amber-200">
-                  No future payday is recorded, so payday alerts cannot run. Add the next paycheck below.
+                  No payday on file. Add one to get reminders.
                 </p>
               ) : null}
               {plan.floatedCount > 0 ? (
                 <p className="text-[11px] text-muted-foreground">
-                  Floated bills stay out of this plan until their target date.
+                  Floated bills return on their planned date.
                 </p>
               ) : null}
             </div>
@@ -363,7 +363,7 @@ export function PlanningSnapshot({
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">No scheduled bills are waiting to be paid.</p>
+              <p className="text-sm text-muted-foreground">Nothing to handle. You're clear.</p>
             )}
           </>
         ) : (
