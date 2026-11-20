@@ -275,6 +275,7 @@ function FloatControl({
   monthKey,
   todayIso,
   nextPaydayDate,
+  floatTargetEstimated,
 }: {
   billId: number;
   billName: string;
@@ -284,6 +285,7 @@ function FloatControl({
   monthKey: string;
   todayIso: string;
   nextPaydayDate: string | null;
+  floatTargetEstimated: boolean;
 }) {
   const router = useRouter();
   const dateRef = useRef<HTMLInputElement>(null);
@@ -334,7 +336,14 @@ function FloatControl({
         aria-label={`Float ${billName} to ${nextPaydayDate}`}
         aria-busy={saving}
         disabled={saving}
-        onClick={() => void run(() => floatBill(billId, monthId, monthKey, nextPaydayDate))}
+        title={"Float to " + nextPaydayDate + (floatTargetEstimated ? " (estimated payday)" : "")}
+        onClick={() => {
+          if (floatTargetEstimated && !window.confirm(
+            "No payday is recorded for " + nextPaydayDate +
+            ". This date is estimated from your pay schedule. Float " + billName + " to it?"
+          )) return;
+          void run(() => floatBill(billId, monthId, monthKey, nextPaydayDate));
+        }}
         className={cn(rowActionClassName, "border-input bg-background hover:bg-muted")}
       >
         Float
@@ -416,6 +425,7 @@ export function BillRow({
   showAssignment = true,
   todayIso,
   nextPaydayDate = null,
+  floatTargetEstimated = false,
 }: {
   bill: Bill;
   monthId: number;
@@ -434,6 +444,7 @@ export function BillRow({
   showAssignment?: boolean;
   todayIso: string;
   nextPaydayDate?: string | null;
+  floatTargetEstimated?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const recurring = bill.isRecurring !== false;
@@ -562,6 +573,7 @@ export function BillRow({
       monthKey={monthKey}
       todayIso={todayIso}
       nextPaydayDate={nextPaydayDate}
+      floatTargetEstimated={floatTargetEstimated}
     />
   );
 

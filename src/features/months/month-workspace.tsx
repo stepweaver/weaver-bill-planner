@@ -128,6 +128,7 @@ function MonthWorkspaceContent({
           windows={windows}
           todayIso={todayIso}
           nextPaydayDate={nextPaydayDate}
+          paydayEvents={paydayEvents}
         />
       ) : (
         <HistoryDashboard

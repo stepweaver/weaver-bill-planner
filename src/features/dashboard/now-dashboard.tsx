@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AddBillButton } from "@/features/bills/add-bill-button";
-import { undoFloatBill } from "@/features/bills/actions";
+import { floatBill, undoFloatBill } from "@/features/bills/actions";
 import { buildPaymentPlan, nextFuturePayday, type PlanBill } from "@/lib/payment-plan";
+import { isoDateOnly } from "@/lib/bill-utils";
 import { splitBillsForViews, nextPaydayCard } from "@/lib/dashboard-bills";
 import { isPriorityCarryover, orderNowBills } from "@/lib/bill-priority";
+import { suggestNextFloatPayPeriod } from "@/lib/float-pay-period";
 import type { PaydayEventRow } from "@/features/months/actions";
 import { cn } from "@/lib/utils";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
@@ -99,6 +101,33 @@ export function NowDashboard({
       }
     } catch {
       toast.error("Could not undo the float.");
+    }
+  }
+
+  async function moveFloatToNextPeriod(bill: DashboardBill) {
+    const suggestion = suggestNextFloatPayPeriod({
+      todayIso, dueDate: bill.dueDate, paydayEvents,
+    });
+    if (!suggestion) {
+      toast.error("No reliable next payday yet. Add a payday in Plan or undo the float to choose a date.");
+      return;
+    }
+    const current = bill.floatTargetDate ? String(bill.floatTargetDate).slice(0, 10) : null;
+    if (current && suggestion.date <= current) return;
+    if (suggestion.estimated && !window.confirm(
+      formatShortDate(suggestion.date) +
+      " is an estimated payday, not one you've entered. Move " + bill.name + " there?"
+    )) return;
+    try {
+      const result = await floatBill(bill.id, bill.ownerMonthId, bill.ownerMonthKey, suggestion.date);
+      if ("error" in result) {
+        toast.error(result.error);
+      } else {
+        toast.success("Moved to " + formatShortDate(suggestion.date) + ". Due date unchanged.");
+        router.refresh();
+      }
+    } catch {
+      toast.error("Could not move the float.");
     }
   }
 
@@ -209,7 +238,7 @@ export function NowDashboard({
                   selected={selected.has(bill.id)}
                   onSelect={(checked) => toggleBill(bill.id, checked)}
                   windows={bill.ownerMonthKey === monthKey ? windows : []}
-                  nextPaydayDate={nextPayday?.date ?? null}
+                  floatSuggestion={suggestNextFloatPayPeriod({ todayIso, dueDate: bill.dueDate, paydayEvents })}
                   viewingMonthKey={monthKey}
                   todayIso={todayIso}
                 />
@@ -257,11 +286,25 @@ export function NowDashboard({
                       <p className="truncate font-medium">{bill.name}</p>
                       <p className="text-muted-foreground">
                         Due {formatShortDate(bill.dueDate)} · Planned {formatShortDate(bill.floatTargetDate)}
+                        {!paydayEvents.some((event) => event.expectedDate === bill.floatTargetDate) ? " (date not yet on pay schedule)" : ""}
                       </p>
                     </div>
-                    <Button size="sm" variant="ghost" className="h-8 shrink-0 text-xs" onClick={() => void unfloat(bill)}>
-                      Undo
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {(() => {
+                        const next = suggestNextFloatPayPeriod({ todayIso, dueDate: bill.dueDate, paydayEvents });
+                        const current = isoDateOnly(bill.floatTargetDate);
+                        return next && (!current || next.date > current) ? (
+                          <Button size="sm" variant="outline" className="h-8 text-xs"
+                            title={"Move to " + formatShortDate(next.date) + (next.estimated ? " (estimated)" : "")}
+                            onClick={() => void moveFloatToNextPeriod(bill)}>
+                            Next period
+                          </Button>
+                        ) : null;
+                      })()}
+                      <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => void unfloat(bill)}>
+                        Undo
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>

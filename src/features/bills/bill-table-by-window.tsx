@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { PaycheckWindow } from "@/lib/paycheck-windows";
+import { suggestNextFloatPayPeriod, type FloatPaydayEvent } from "@/lib/float-pay-period";
 
 type BillInstance = {
   id: number;
@@ -65,6 +66,7 @@ export function BillTableByWindow({
   monthKey,
   todayIso,
   nextPaydayDate,
+  paydayEvents = [],
 }: {
   windows: PaycheckWindow[];
   bills: BillInstance[];
@@ -72,6 +74,7 @@ export function BillTableByWindow({
   monthKey: string;
   todayIso: string;
   nextPaydayDate: string | null;
+  paydayEvents?: FloatPaydayEvent[];
 }) {
   const mdUp = useMdUp();
   const showList = mdUp !== true;
@@ -114,7 +117,8 @@ export function BillTableByWindow({
                       labelMonthKey={monthKey}
                       showAssignment={!fromAnotherMonth}
                       todayIso={todayIso}
-                      nextPaydayDate={nextPaydayDate}
+                      nextPaydayDate={suggestNextFloatPayPeriod({ todayIso, dueDate: b.dueDate, paydayEvents })?.date ?? (paydayEvents.length ? null : nextPaydayDate)}
+                      floatTargetEstimated={suggestNextFloatPayPeriod({ todayIso, dueDate: b.dueDate, paydayEvents })?.estimated ?? false}
                     />
                   </Fragment>
                 );
