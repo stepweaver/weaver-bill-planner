@@ -10,7 +10,7 @@ export function PaydayAcknowledgment({ acknowledged }: { acknowledged: boolean }
   const [saving, setSaving] = useState(false);
   const router = useRouter();
   if (acknowledged) {
-    return <p className="text-sm text-muted-foreground">Payday plan acknowledged for today.</p>;
+    return <p className="text-sm text-muted-foreground">No more payday reminders today.</p>;
   }
 
   async function handleClick() {
@@ -20,11 +20,11 @@ export function PaydayAcknowledgment({ acknowledged }: { acknowledged: boolean }
       if ("error" in result) {
         toast.error(result.error);
       } else {
-        toast.success("Payday plan acknowledged. No more payday reminders today.");
+        toast.success("Payday reminders off for today.");
         router.refresh();
       }
     } catch {
-      toast.error("Couldn't save payday acknowledgment.");
+      toast.error("Couldn't save. Try again.");
     } finally {
       setSaving(false);
     }
@@ -32,7 +32,7 @@ export function PaydayAcknowledgment({ acknowledged }: { acknowledged: boolean }
 
   return (
     <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void handleClick()}>
-      {saving ? "Saving..." : "Payday planned"}
+      {saving ? "Saving..." : "Done for today"}
     </Button>
   );
 }

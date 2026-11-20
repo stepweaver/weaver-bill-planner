@@ -102,7 +102,7 @@ export async function sendTestNotification(): Promise<
 
   const payload = {
     title: "λledger",
-    body: "Notifications are on. This is a test.",
+    body: "Test received. Notifications are working.",
     url: "/months",
   };
   const dedupeKey = `test:${new Date().toISOString()}`;

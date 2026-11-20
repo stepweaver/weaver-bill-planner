@@ -38,7 +38,7 @@ export function NotificationControls({
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        toast.error("Notification permission was not granted.");
+        toast.error("Notifications blocked. Allow them in device settings.");
         return;
       }
       const registration = await navigator.serviceWorker.register("/sw.js");
@@ -56,9 +56,9 @@ export function NotificationControls({
         toast.error(result.error);
         return;
       }
-      toast.success("Notifications are on for this device.");
+      toast.success("Notifications on.");
     } catch {
-      toast.error("Couldn't enable notifications on this device.");
+      toast.error("Couldn't turn on notifications.");
     } finally {
       setBusy(null);
     }
@@ -79,7 +79,7 @@ export function NotificationControls({
           return;
         }
       }
-      toast.success("Notifications are off for this device.");
+      toast.success("Notifications off.");
     } catch {
       toast.error("Couldn't turn notifications off.");
     } finally {
@@ -107,17 +107,17 @@ export function NotificationControls({
   return (
     <div className="space-y-4 text-sm">
       <p className="text-muted-foreground">
-        On iPhone, add λledger to the Home Screen and open it from that icon before enabling
-        notifications. Desktop Chrome, Edge, Firefox, and Safari can enable them in the browser.
+        iPhone: Add λledger to your Home Screen, then open it there to turn on alerts.
+        Desktop: Turn on alerts in your browser.
       </p>
       {!publicKey ? (
-        <p>Set the server VAPID keys before this device can subscribe.</p>
+        <p>Push alerts aren&apos;t configured on the server.</p>
       ) : !supported ? (
-        <p>This browser cannot receive push notifications.</p>
+        <p>This browser doesn&apos;t support push alerts.</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           <Button type="button" className="h-11" disabled={busy != null} onClick={() => void enable()}>
-            {busy === "enable" ? "Enabling" : "Enable notifications"}
+            {busy === "enable" ? "Enabling" : "Turn on alerts"}
           </Button>
           <Button
             type="button"
@@ -126,7 +126,7 @@ export function NotificationControls({
             disabled={busy != null}
             onClick={() => void disable()}
           >
-            {busy === "disable" ? "Disabling" : "Disable"}
+            {busy === "disable" ? "Disabling" : "Turn off"}
           </Button>
           <Button
             type="button"
@@ -141,10 +141,10 @@ export function NotificationControls({
       )}
       {!ready ? (
         <p className="text-muted-foreground">
-          Delivery history appears after the notifications migration is applied.
+          Delivery history needs the notifications migration.
         </p>
       ) : failures.length === 0 ? (
-        <p className="text-muted-foreground">No failed deliveries.</p>
+        <p className="text-muted-foreground">No failed alerts.</p>
       ) : (
         <ul className="space-y-2">
           {failures.map((failure) => (
